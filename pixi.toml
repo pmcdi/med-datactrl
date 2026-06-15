@@ -1,0 +1,14 @@
+[workspace]
+authors = ["Joshua Siraj <joshua.siraj@ryerson.ca>"]
+channels = ["conda-forge"]
+name = "med-imagectrl"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+python = ">=3.11,<3.14"
+
+[pypi-dependencies]
+med-imagectrl = { path = ".", editable = true }

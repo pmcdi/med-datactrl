@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "med-imagectrl"
+version = "0.1.0"
+requires-python = ">=3.11"
+authors = [{ name = "Joshua Siraj", email = "joshuasiraj@gmail.com" }]
+dependencies = [
+    "pydantic>=2.13.4,<3",
+    "med-imagetools>=2.15.0,<3",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
