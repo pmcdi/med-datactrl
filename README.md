@@ -1,4 +1,4 @@
-# med-imagectrl
+# med-datactrl
 
 ## API
 

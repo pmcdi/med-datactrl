@@ -9,7 +9,7 @@ from imgtools.dicom.dicom_metadata.extractor_base import (
 )
 
 if TYPE_CHECKING:
-    from imgctrl.controller import Controller
+    from datactrl.controller import Controller
 
 AtomFn = Callable[["Controller", str], Any]
 EMPTY_VALUE = ""

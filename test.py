@@ -1,4 +1,4 @@
-from imgctrl.controller import Controller
+from datactrl.controller import Controller
 from rich import print
 
 

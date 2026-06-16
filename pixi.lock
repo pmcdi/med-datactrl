@@ -494,9 +494,9 @@ packages:
   sha256: 84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8
   requires_python: '>=3.7'
 - pypi: ./
-  name: med-imagectrl
+  name: med-datactrl
   version: 0.1.0
-  sha256: b33cf9b45913a5e46fe53a9f1894cb031f3217b569a3cb0dbd8328c98b9ef040
+  sha256: 173a4c369e7d8444e4adb7efe8469c9d2b9e9046c4e27b183e465f18589c4ff0
   requires_dist:
   - pydantic>=2.13.4,<3
   - med-imagetools>=2.15.0,<3

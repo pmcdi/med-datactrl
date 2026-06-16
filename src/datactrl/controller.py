@@ -7,9 +7,9 @@ from imgtools.dicom.crawl import Crawler
 from imgtools.dicom.interlacer import Interlacer
 from imgtools.utils.interlacer_utils import SeriesNode
 
-from imgctrl.registry import register_atoms
+from datactrl.registry import register_atoms
 
-logger = logging.getLogger("imgctrl")
+logger = logging.getLogger("datactrl")
 logging.basicConfig(level=logging.INFO)
 
 
