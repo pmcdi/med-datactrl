@@ -1,0 +1,282 @@
+[
+  {
+    "id": "K-R1",
+    "patient": "KiTS-00008",
+    "clinical_domain": "abdominal_oncology",
+    "asked_by": "radiologist",
+    "question": "Was IV contrast used on the abdominal CT? If so, what agent and volume were administered?",
+    "expected": {
+      "body_part": "ABDOMEN",
+      "contrast_agent": "OMNIPAQUE",
+      "contrast_volume": "100",
+      "protocol_name": "CAP"
+    },
+    "min_atom_calls": 4,
+    "required_atoms": [
+      "get_BodyPartExamined",
+      "get_ct_ContrastBolusAgent",
+      "get_ct_ContrastBolusVolume",
+      "get_ProtocolName"
+    ],
+    "allows_get_patient_info": true
+  },
+  {
+    "id": "K-R2",
+    "patient": "KiTS-00008",
+    "clinical_domain": "segmentation_qa",
+    "asked_by": "radiologist",
+    "question": "What structures are included in the segmentation series, and what are they named in the ROI list?",
+    "expected": {
+      "roi_descriptions": ["Kidney", "Renal Tumor"],
+      "roi_names": ["Kidney", "Mass"],
+      "segmentation_type": "BINARY"
+    },
+    "min_atom_calls": 3,
+    "required_atoms": [
+      "get_seg_ROIDescriptions",
+      "get_seg_ROINames",
+      "get_seg_SegmentationType"
+    ],
+    "allows_get_patient_info": true
+  },
+  {
+    "id": "K-R3",
+    "patient": "KiTS-00008",
+    "clinical_domain": "segmentation_qa",
+    "asked_by": "imaging_scientist",
+    "question": "Which CT series was this segmentation derived from, and do the through-plane spacing of the segmentation and the source CT slice thickness match?",
+    "expected": {
+      "referenced_series_matches_ct": true,
+      "ct_slice_thickness": "3",
+      "seg_spacing_z": 3.0
+    },
+    "min_atom_calls": 4,
+    "required_atoms": [
+      "get_seg_ReferencedSeriesUID",
+      "get_SliceThickness",
+      "get_seg_SegSpacing",
+      "get_SeriesInstanceUID"
+    ],
+    "allows_get_patient_info": true
+  },
+  {
+    "id": "K-R4",
+    "patient": "KiTS-00008",
+    "clinical_domain": "ct_technique",
+    "asked_by": "radiologist",
+    "question": "For the CT series that has an associated segmentation, summarize the acquisition: body part, kVp, slice thickness, reconstruction kernel, and patient position.",
+    "expected": {
+      "body_part": "ABDOMEN",
+      "kvp": "120",
+      "slice_thickness": "3",
+      "convolution_kernel": "['I31f', '3']",
+      "patient_position": "FFS"
+    },
+    "min_atom_calls": 6,
+    "required_atoms": [
+      "get_BodyPartExamined",
+      "get_ct_KVP",
+      "get_SliceThickness",
+      "get_ct_ConvolutionKernel",
+      "get_PatientPosition"
+    ],
+    "allows_get_patient_info": true
+  },
+  {
+    "id": "A-R1",
+    "patient": "Adrenal_Ki67_Seg_002",
+    "clinical_domain": "abdominal_oncology",
+    "asked_by": "radiologist",
+    "question": "Which CT acquisition was used for the tumor segmentation — contrast-enhanced or non-contrast?",
+    "expected": {
+      "segmentation_source_protocol": "SURE START ABD 1/10/5/5",
+      "phase": "contrast-enhanced"
+    },
+    "min_atom_calls": 4,
+    "required_atoms": [
+      "get_seg_ReferencedSeriesUID",
+      "get_ProtocolName"
+    ],
+    "allows_get_patient_info": true
+  },
+  {
+    "id": "A-R2",
+    "patient": "Adrenal_Ki67_Seg_002",
+    "clinical_domain": "multiphase_ct",
+    "asked_by": "radiologist",
+    "question": "How many CT phases were acquired, and what protocol name distinguishes the contrast phase from the non-contrast phases?",
+    "expected": {
+      "ct_phase_count": 3,
+      "contrast_protocol": "SURE START ABD 1/10/5/5",
+      "non_contrast_protocol": "NON CON ABD 1/10/5/5"
+    },
+    "min_atom_calls": 3,
+    "required_atoms": ["get_ProtocolName"],
+    "allows_get_patient_info": true
+  },
+  {
+    "id": "A-R3",
+    "patient": "Adrenal_Ki67_Seg_002",
+    "clinical_domain": "segmentation_qa",
+    "asked_by": "research_coordinator",
+    "question": "What ROI is segmented, what body part was imaged, and what slice thickness was used on the source CT?",
+    "expected": {
+      "roi_names": ["Mass"],
+      "roi_descriptions": ["Tumor"],
+      "body_part": "ADRENAL",
+      "slice_thickness": "5.0"
+    },
+    "min_atom_calls": 4,
+    "required_atoms": [
+      "get_seg_ROINames",
+      "get_seg_ROIDescriptions",
+      "get_BodyPartExamined",
+      "get_SliceThickness"
+    ],
+    "allows_get_patient_info": true
+  },
+  {
+    "id": "A-R4",
+    "patient": "Adrenal_Ki67_Seg_002",
+    "clinical_domain": "ct_technique",
+    "asked_by": "medical_physicist",
+    "question": "Across all three CT series, is kVp consistent, and does any series use a markedly lower exposure setting?",
+    "expected": {
+      "kvp_values": ["120", "120", "120"],
+      "exposure_values": ["225", "225", "180"],
+      "lowest_exposure": "180"
+    },
+    "min_atom_calls": 6,
+    "required_atoms": ["get_ct_KVP", "get_ct_Exposure"],
+    "allows_get_patient_info": true
+  },
+  {
+    "id": "S-R1",
+    "patient": "STS_002",
+    "clinical_domain": "radiation_oncology",
+    "asked_by": "radiation_oncologist",
+    "question": "What gross tumor volumes were contoured in the PET-referenced and CT-referenced structure sets, and how many ROIs are in each?",
+    "expected": {
+      "pet_structure_set_name": "RTstruct_PET",
+      "ct_structure_set_name": "RTstruct_CT",
+      "roi_names": ["GTV_Mass", "GTV_Edema"],
+      "num_rois": 2
+    },
+    "min_atom_calls": 4,
+    "required_atoms": [
+      "get_rtstruct_StructureSetName",
+      "get_rtstruct_ROINames",
+      "get_rtstruct_NumROIs"
+    ],
+    "allows_get_patient_info": true
+  },
+  {
+    "id": "S-R2",
+    "patient": "STS_002",
+    "clinical_domain": "radiation_oncology",
+    "asked_by": "radiation_oncologist",
+    "question": "Which structure set was generated from the PET series, and what modality does it reference?",
+    "expected": {
+      "structure_set_name": "RTstruct_PET",
+      "referenced_modality": "PT"
+    },
+    "min_atom_calls": 4,
+    "required_atoms": [
+      "get_rtstruct_StructureSetName",
+      "get_rtstruct_ReferencedSeriesUID",
+      "get_Modality"
+    ],
+    "allows_get_patient_info": true
+  },
+  {
+    "id": "S-R3",
+    "patient": "STS_002",
+    "clinical_domain": "radiation_oncology",
+    "asked_by": "medical_physicist",
+    "question": "For the CT-referenced structure set, what CT kVp and slice thickness were used on the underlying scan?",
+    "expected": {
+      "structure_set_name": "RTstruct_CT",
+      "kvp": "140",
+      "slice_thickness": "3.75"
+    },
+    "min_atom_calls": 4,
+    "required_atoms": [
+      "get_rtstruct_StructureSetName",
+      "get_rtstruct_ReferencedSeriesUID",
+      "get_ct_KVP",
+      "get_SliceThickness"
+    ],
+    "allows_get_patient_info": true
+  },
+  {
+    "id": "S-R4",
+    "patient": "STS_002",
+    "clinical_domain": "multimodal_fusion",
+    "asked_by": "medical_physicist",
+    "question": "What are the slice thicknesses of the CT, PET, and all MR series in this extremity case?",
+    "expected": {
+      "ct_slice_thickness": "3.75",
+      "pt_slice_thickness": "3.27",
+      "mr_slice_thicknesses": ["3.2699585", "6", "3.2699585", "6.364"]
+    },
+    "min_atom_calls": 6,
+    "required_atoms": ["get_Modality", "get_SliceThickness"],
+    "allows_get_patient_info": true
+  },
+  {
+    "id": "S-R5",
+    "patient": "STS_002",
+    "clinical_domain": "radiation_oncology",
+    "asked_by": "radiologist",
+    "question": "Which MR acquisition has the thickest slices, and which structure set references that series?",
+    "expected": {
+      "max_mr_slice_thickness": "6.364",
+      "structure_set_name": "RTstruct_T2FS"
+    },
+    "min_atom_calls": 6,
+    "required_atoms": [
+      "get_SliceThickness",
+      "get_rtstruct_ReferencedSeriesUID",
+      "get_rtstruct_StructureSetName"
+    ],
+    "allows_get_patient_info": true
+  },
+  {
+    "id": "S-R6",
+    "patient": "STS_002",
+    "clinical_domain": "nuclear_medicine",
+    "asked_by": "nuclear_medicine_physician",
+    "question": "What body part was imaged on PET, what protocol was used, and what decay correction was applied?",
+    "expected": {
+      "body_part": "EXTREMITY",
+      "protocol_name": "MGH_WBS_2D",
+      "decay_correction": "START"
+    },
+    "min_atom_calls": 4,
+    "required_atoms": [
+      "get_BodyPartExamined",
+      "get_ProtocolName",
+      "get_pt_DecayCorrection"
+    ],
+    "allows_get_patient_info": true
+  },
+  {
+    "id": "S-R7",
+    "patient": "STS_002",
+    "clinical_domain": "radiation_oncology",
+    "asked_by": "radiation_oncologist",
+    "question": "Which structure set corresponds to the T1-weighted MR series, and what ROIs does it contain?",
+    "expected": {
+      "structure_set_name": "RTstruct_T1",
+      "referenced_modality": "MR",
+      "roi_names": ["GTV_Mass", "GTV_Edema"]
+    },
+    "min_atom_calls": 3,
+    "required_atoms": [
+      "get_rtstruct_StructureSetName",
+      "get_rtstruct_ReferencedSeriesUID",
+      "get_rtstruct_ROINames"
+    ],
+    "allows_get_patient_info": true
+  }
+]

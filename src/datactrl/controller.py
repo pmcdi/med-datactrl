@@ -12,17 +12,6 @@ from datactrl.registry import register_atoms
 logger = logging.getLogger("datactrl")
 logging.basicConfig(level=logging.INFO)
 
-
-def _series_node_to_dict(node: SeriesNode) -> dict[str, Any]:
-    return {
-        "modality": node.Modality,
-        "series_id": node.SeriesInstanceUID,
-        "study_id": node.StudyInstanceUID,
-        "children": [
-            _series_node_to_dict(child) for child in node.children
-        ],
-    }
-
 class Controller:
     def __init__(self, crawler: Crawler):
         self.crawler = crawler
@@ -38,6 +27,17 @@ class Controller:
         return cls(crawler)
     
     def get_patient_info(self) -> dict[str, list[dict[str, Any]]]:
+        
+        def _series_node_to_dict(node: SeriesNode) -> dict[str, Any]:
+            return {
+                "modality": node.Modality,
+                "series_id": node.SeriesInstanceUID,
+                "study_id": node.StudyInstanceUID,
+                "children": [
+                    _series_node_to_dict(child) for child in node.children
+                ],
+            }
+
         patient_groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for root in self.interlacer.root_nodes:
             patient_groups[root.PatientID].append(
