@@ -1,3 +1,5 @@
+"""Register deterministic metadata getters ("atoms") for adapters."""
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -9,50 +11,55 @@ from imgtools.dicom.dicom_metadata.extractor_base import (
 )
 
 if TYPE_CHECKING:
-    from datactrl.controller import Controller
+    from datactrl.adapters.dicom import DicomAdapter
+    from datactrl.adapters.pathology import PathologyAdapter
 
-AtomFn = Callable[["Controller", str], Any]
+AtomFn = Callable[["DicomAdapter", str], Any]
+SlideAtomFn = Callable[["PathologyAdapter", str], Any]
 EMPTY_VALUE = ""
 
 
-def _get_series_meta(controller: Controller, series_id: str) -> dict[str, Any]:
-    return controller.crawler.get_series_info(series_id)
+def register_atoms(adapter: DicomAdapter) -> dict[str, AtomFn]:
+    """Register DICOM atom getters for metadata tags present in ``adapter``."""
+
+    present_keys, keys_by_modality = _present_dicom_keys(adapter)
+    atoms: dict[str, AtomFn] = {}
+
+    for tag in sorted(ModalityMetadataExtractor.base_tags & present_keys):
+        atoms[f"get_{tag}"] = _make_base_getter(tag)
+
+    for modality in sorted(keys_by_modality):
+        extractor = get_extractor(modality)
+        modality_keys = extractor.modality_tags | set(extractor.computed_fields)
+        for tag in sorted(modality_keys & keys_by_modality[modality]):
+            atoms[f"get_{modality.lower()}_{tag}"] = _make_modality_getter(
+                modality,
+                tag,
+            )
+
+    return atoms
 
 
-def _make_base_getter(tag: str) -> AtomFn:
-    """Create a generic atom getter for a base metadata tag."""
+def register_slide_atoms(adapter: PathologyAdapter) -> dict[str, SlideAtomFn]:
+    """Register pathology atom getters for OpenSlide properties in ``adapter``."""
 
-    def getter(ctrl: Controller, series_id: str) -> Any:
-        return _get_series_meta(ctrl, series_id).get(tag, EMPTY_VALUE)
+    present_keys: set[str] = set()
+    for slide_id in adapter.slides:
+        present_keys.update(adapter.get_slide_metadata(slide_id))
 
-    getter.__name__ = f"get_{tag}"
-    return getter
-
-
-def _make_modality_getter(modality: str, tag: str) -> AtomFn:
-    """Create a modality-scoped atom getter for a specific tag."""
-
-    def getter(ctrl: Controller, series_id: str) -> Any:
-        meta = _get_series_meta(ctrl, series_id)
-        actual = meta.get("Modality", EMPTY_VALUE)
-        if actual.upper() != modality.upper():
-            msg = f"Series {series_id!r} is {actual!r}, expected {modality!r}"
-            raise ValueError(msg)
-        return meta.get(tag, EMPTY_VALUE)
-
-    getter.__name__ = f"get_{modality.lower()}_{tag}"
-    return getter
+    return {
+        f"get_pathology_{_normalize_property_key(key)}": _make_slide_getter(key)
+        for key in sorted(present_keys)
+    }
 
 
-def _present_keys_by_modality(
-    controller: Controller,
+def _present_dicom_keys(
+    adapter: DicomAdapter,
 ) -> tuple[set[str], dict[str, set[str]]]:
-    """Collect all present metadata keys globally and per modality."""
-
     present_keys: set[str] = set()
     keys_by_modality: dict[str, set[str]] = defaultdict(set)
 
-    for series in controller.crawler.crawl_db_raw.values():
+    for series in adapter.crawler.crawl_db_raw.values():
         for subseries in series.values():
             modality = str(subseries.get("Modality", EMPTY_VALUE)).upper()
             for key in subseries:
@@ -63,24 +70,34 @@ def _present_keys_by_modality(
     return present_keys, keys_by_modality
 
 
-def register_atoms(controller: Controller) -> dict[str, AtomFn]:
-    """Register atoms for tags that are present in this controller."""
+def _make_base_getter(tag: str) -> AtomFn:
+    def getter(adapter: DicomAdapter, series_id: str) -> Any:
+        return adapter.crawler.get_series_info(series_id).get(tag, EMPTY_VALUE)
 
-    present_keys, keys_by_modality = _present_keys_by_modality(controller)
-    atoms: dict[str, AtomFn] = {}
+    getter.__name__ = f"get_{tag}"
+    return getter
 
-    for tag in sorted(ModalityMetadataExtractor.base_tags & present_keys):
-        atoms[f"get_{tag}"] = _make_base_getter(tag)
 
-    for modality in sorted(keys_by_modality):
-        extractor = get_extractor(modality)
-        modality_keys = extractor.modality_tags | set(
-            extractor.computed_fields.keys()
-        )
-        for tag in sorted(modality_keys & keys_by_modality[modality]):
-            atoms[f"get_{modality.lower()}_{tag}"] = _make_modality_getter(
-                modality,
-                tag,
-            )
+def _make_modality_getter(modality: str, tag: str) -> AtomFn:
+    def getter(adapter: DicomAdapter, series_id: str) -> Any:
+        meta = adapter.crawler.get_series_info(series_id)
+        actual = meta.get("Modality", EMPTY_VALUE)
+        if actual.upper() != modality.upper():
+            msg = f"Series {series_id!r} is {actual!r}, expected {modality!r}"
+            raise ValueError(msg)
+        return meta.get(tag, EMPTY_VALUE)
 
-    return atoms
+    getter.__name__ = f"get_{modality.lower()}_{tag}"
+    return getter
+
+
+def _make_slide_getter(property_key: str) -> SlideAtomFn:
+    def getter(adapter: PathologyAdapter, slide_id: str) -> Any:
+        return adapter.get_slide_metadata(slide_id).get(property_key, EMPTY_VALUE)
+
+    getter.__name__ = f"get_pathology_{_normalize_property_key(property_key)}"
+    return getter
+
+
+def _normalize_property_key(key: str) -> str:
+    return key.replace(".", "_").replace(" ", "_")

@@ -1,60 +1,126 @@
+"""Orchestrate multimodal patient data access."""
+
+from __future__ import annotations
+
 import logging
-from collections import defaultdict
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
-from imgtools.dicom.crawl import Crawler
-from imgtools.dicom.interlacer import Interlacer
-from imgtools.utils.interlacer_utils import SeriesNode
-
-from datactrl.registry import register_atoms
+from datactrl.adapters import ClinicalAdapter, DicomAdapter, PathologyAdapter
+from datactrl.adapters.discovery import discover_modalities
 
 logger = logging.getLogger("datactrl")
 logging.basicConfig(level=logging.INFO)
 
+AdapterT = TypeVar("AdapterT")
+
+
 class Controller:
-    def __init__(self, crawler: Crawler):
-        self.crawler = crawler
-        self.interlacer = Interlacer(crawler.index)
-        self.atoms = register_atoms(self)
+    """Entry point for reading DICOM, pathology, and clinical data for one patient."""
+
+    def __init__(
+        self,
+        *,
+        patient_dir: Path | None = None,
+        dicom: DicomAdapter | None = None,
+        pathology: PathologyAdapter | None = None,
+        clinical: ClinicalAdapter | None = None,
+    ):
+        self.patient_dir = patient_dir
+        self._dicom = dicom
+        self._pathology = pathology
+        self._clinical = clinical
+
+        # Exposed for callers that still need direct DICOM crawler access.
+        self.crawler = dicom.crawler if dicom is not None else None
+        self.interlacer = dicom.interlacer if dicom is not None else None
+        self.atoms = dicom.atoms if dicom is not None else {}
 
     @classmethod
-    def from_dicom_directory(cls, directory: str | Path) -> "Controller":
-        logger.info(f"Initalizing Controller from DICOM directory: {directory}")
-        crawler = Crawler(Path(directory))
-        crawler.crawl()
+    def from_patient_directory(cls, directory: str | Path) -> Controller:
+        """Build a controller by scanning a patient directory for supported files."""
 
-        return cls(crawler)
-    
-    def get_patient_info(self) -> dict[str, list[dict[str, Any]]]:
-        
-        def _series_node_to_dict(node: SeriesNode) -> dict[str, Any]:
-            return {
-                "modality": node.Modality,
-                "series_id": node.SeriesInstanceUID,
-                "study_id": node.StudyInstanceUID,
-                "children": [
-                    _series_node_to_dict(child) for child in node.children
-                ],
-            }
+        patient_dir = Path(directory)
+        logger.info("Initializing Controller from patient directory: %s", patient_dir)
 
-        patient_groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
-        for root in self.interlacer.root_nodes:
-            patient_groups[root.PatientID].append(
-                _series_node_to_dict(root)
+        modalities = discover_modalities(patient_dir)
+        if not modalities:
+            raise ValueError(
+                f"No supported files found in patient directory: {patient_dir}"
             )
 
-        return dict(sorted(patient_groups.items(), key=lambda item: item[0]))
+        return cls(
+            patient_dir=patient_dir,
+            dicom=(
+                DicomAdapter.from_directory(patient_dir)
+                if "dicom" in modalities
+                else None
+            ),
+            pathology=PathologyAdapter.from_patient_directory(patient_dir),
+            clinical=ClinicalAdapter.from_patient_directory(patient_dir),
+        )
 
-    def get_series_metadata(self, series_id: str) -> dict[str, Any]:
-        return self.crawler.get_series_info(series_id)
+    # DICOM
 
-    def call_atom(self, name: str, series_id: str) -> Any:
-        try:
-            fn = self.atoms[name]
-        except KeyError:
-            raise ValueError(f"Unknown atom: {name!r}") from None
-        return fn(self, series_id)
+    def get_dicom_patient_info(self) -> dict[str, list[dict[str, Any]]]:
+        """Return DICOM series trees grouped by patient ID."""
 
-    def list_atoms(self) -> list[str]:
-        return sorted(self.atoms)
+        return self._require(self._dicom, "DICOM").get_dicom_patient_info()
+
+    def get_dicom_series_metadata(self, series_id: str) -> dict[str, Any]:
+        """Return the full metadata dict for one DICOM series."""
+
+        return self._require(self._dicom, "DICOM").get_dicom_series_metadata(series_id)
+
+    def list_dicom_atoms(self) -> list[str]:
+        """Return registered DICOM atom getter names."""
+
+        return self._require(self._dicom, "DICOM").list_dicom_atoms()
+
+    def call_dicom_atom(self, name: str, series_id: str) -> Any:
+        """Fetch one DICOM metadata field for a series."""
+
+        return self._require(self._dicom, "DICOM").call_dicom_atom(name, series_id)
+
+    # Pathology
+
+    def get_pathology_info(self) -> list[dict[str, Any]]:
+        """Return summaries for all pathology slides in the patient directory."""
+
+        return self._require(self._pathology, "pathology").list_slides()
+
+    def get_slide_metadata(self, slide_id: str) -> dict[str, Any]:
+        """Return OpenSlide properties for one slide."""
+
+        return self._require(self._pathology, "pathology").get_slide_metadata(slide_id)
+
+    def list_slide_atoms(self) -> list[str]:
+        """Return registered pathology slide atom getter names."""
+
+        return self._require(self._pathology, "pathology").list_slide_atoms()
+
+    def call_slide_atom(self, name: str, slide_id: str) -> Any:
+        """Fetch one pathology metadata field for a slide."""
+
+        return self._require(self._pathology, "pathology").call_slide_atom(
+            name,
+            slide_id,
+        )
+
+    # Clinical
+
+    def list_clinical_notes(self) -> list[dict[str, Any]]:
+        """Return summaries for all clinical notes in the patient directory."""
+
+        return self._require(self._clinical, "clinical").list_notes()
+
+    def get_clinical_note(self, note_id: str) -> str | dict[str, Any]:
+        """Return the full text or parsed JSON for one clinical note."""
+
+        return self._require(self._clinical, "clinical").get_note(note_id)
+
+    @staticmethod
+    def _require(adapter: AdapterT | None, label: str) -> AdapterT:
+        if adapter is None:
+            raise ValueError(f"No {label} data available for this patient case")
+        return adapter

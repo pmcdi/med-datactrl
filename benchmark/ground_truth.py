@@ -20,11 +20,11 @@ PATIENT_DIRS = {
 
 
 def _load_controller(patient: str) -> Controller:
-    return Controller.from_dicom_directory(PATIENT_DIRS[patient])
+    return Controller.from_patient_directory(PATIENT_DIRS[patient])
 
 
 def _collect_nodes(controller: Controller) -> list[dict[str, Any]]:
-    patients = controller.get_patient_info()
+    patients = controller.get_dicom_patient_info()
     trees = patients[next(iter(patients))]
 
     nodes: list[dict[str, Any]] = []
@@ -63,7 +63,7 @@ def _find_rtstruct_by_name(
     for node in nodes:
         if node["modality"] != "RTSTRUCT":
             continue
-        name = controller.call_atom(
+        name = controller.call_dicom_atom(
             "get_rtstruct_StructureSetName",
             node["series_id"],
         )
@@ -80,7 +80,7 @@ def _modality_for_series(
     for node in nodes:
         if node["series_id"] == series_id:
             return node["modality"]
-    return controller.call_atom("get_Modality", series_id)
+    return controller.call_dicom_atom("get_Modality", series_id)
 
 
 def compute_answer(question_id: str) -> dict[str, Any]:
@@ -90,7 +90,7 @@ def compute_answer(question_id: str) -> dict[str, Any]:
     question = next(q for q in questions if q["id"] == question_id)
     patient = question["patient"]
     controller = _load_controller(patient)
-    patients = controller.get_patient_info()
+    patients = controller.get_dicom_patient_info()
     trees = patients[next(iter(patients))]
     nodes = _collect_nodes(controller)
 
@@ -98,19 +98,19 @@ def compute_answer(question_id: str) -> dict[str, Any]:
         ct = trees[0]
         sid = ct["series_id"]
         return {
-            "body_part": controller.call_atom("get_BodyPartExamined", sid),
-            "contrast_agent": controller.call_atom("get_ct_ContrastBolusAgent", sid),
-            "contrast_volume": controller.call_atom("get_ct_ContrastBolusVolume", sid),
-            "protocol_name": controller.call_atom("get_ProtocolName", sid),
+            "body_part": controller.call_dicom_atom("get_BodyPartExamined", sid),
+            "contrast_agent": controller.call_dicom_atom("get_ct_ContrastBolusAgent", sid),
+            "contrast_volume": controller.call_dicom_atom("get_ct_ContrastBolusVolume", sid),
+            "protocol_name": controller.call_dicom_atom("get_ProtocolName", sid),
         }
 
     if question_id == "K-R2":
         seg = trees[0]["children"][0]
         sid = seg["series_id"]
         return {
-            "roi_descriptions": controller.call_atom("get_seg_ROIDescriptions", sid),
-            "roi_names": controller.call_atom("get_seg_ROINames", sid),
-            "segmentation_type": controller.call_atom("get_seg_SegmentationType", sid),
+            "roi_descriptions": controller.call_dicom_atom("get_seg_ROIDescriptions", sid),
+            "roi_names": controller.call_dicom_atom("get_seg_ROINames", sid),
+            "segmentation_type": controller.call_dicom_atom("get_seg_SegmentationType", sid),
         }
 
     if question_id == "K-R3":
@@ -118,14 +118,14 @@ def compute_answer(question_id: str) -> dict[str, Any]:
         seg = ct["children"][0]
         ct_sid = ct["series_id"]
         seg_sid = seg["series_id"]
-        spacing = controller.call_atom("get_seg_SegSpacing", seg_sid)
+        spacing = controller.call_dicom_atom("get_seg_SegSpacing", seg_sid)
         return {
-            "referenced_series_matches_ct": controller.call_atom(
+            "referenced_series_matches_ct": controller.call_dicom_atom(
                 "get_seg_ReferencedSeriesUID",
                 seg_sid,
             )
             == ct_sid,
-            "ct_slice_thickness": controller.call_atom("get_SliceThickness", ct_sid),
+            "ct_slice_thickness": controller.call_dicom_atom("get_SliceThickness", ct_sid),
             "seg_spacing_z": spacing[2] if spacing else None,
         }
 
@@ -133,21 +133,21 @@ def compute_answer(question_id: str) -> dict[str, Any]:
         ct = trees[0]
         sid = ct["series_id"]
         return {
-            "body_part": controller.call_atom("get_BodyPartExamined", sid),
-            "kvp": controller.call_atom("get_ct_KVP", sid),
-            "slice_thickness": controller.call_atom("get_SliceThickness", sid),
-            "convolution_kernel": controller.call_atom("get_ct_ConvolutionKernel", sid),
-            "patient_position": controller.call_atom("get_PatientPosition", sid),
+            "body_part": controller.call_dicom_atom("get_BodyPartExamined", sid),
+            "kvp": controller.call_dicom_atom("get_ct_KVP", sid),
+            "slice_thickness": controller.call_dicom_atom("get_SliceThickness", sid),
+            "convolution_kernel": controller.call_dicom_atom("get_ct_ConvolutionKernel", sid),
+            "patient_position": controller.call_dicom_atom("get_PatientPosition", sid),
         }
 
     if question_id == "A-R1":
         ct = _ct_with_seg_child(trees)
         seg = _seg_child(ct) if ct else None
-        ref_sid = controller.call_atom(
+        ref_sid = controller.call_dicom_atom(
             "get_seg_ReferencedSeriesUID",
             seg["series_id"],
         )
-        protocol = controller.call_atom("get_ProtocolName", ref_sid)
+        protocol = controller.call_dicom_atom("get_ProtocolName", ref_sid)
         return {
             "segmentation_source_protocol": protocol,
             "phase": "contrast-enhanced"
@@ -158,7 +158,7 @@ def compute_answer(question_id: str) -> dict[str, Any]:
     if question_id == "A-R2":
         ct_roots = [root for root in trees if root["modality"] == "CT"]
         protocols = [
-            controller.call_atom("get_ProtocolName", root["series_id"])
+            controller.call_dicom_atom("get_ProtocolName", root["series_id"])
             for root in ct_roots
         ]
         contrast = next(p for p in protocols if "SURE START" in p)
@@ -172,27 +172,27 @@ def compute_answer(question_id: str) -> dict[str, Any]:
     if question_id == "A-R3":
         ct = _ct_with_seg_child(trees)
         seg = _seg_child(ct) if ct else None
-        ref_sid = controller.call_atom(
+        ref_sid = controller.call_dicom_atom(
             "get_seg_ReferencedSeriesUID",
             seg["series_id"],
         )
         return {
-            "roi_names": controller.call_atom("get_seg_ROINames", seg["series_id"]),
-            "roi_descriptions": controller.call_atom(
+            "roi_names": controller.call_dicom_atom("get_seg_ROINames", seg["series_id"]),
+            "roi_descriptions": controller.call_dicom_atom(
                 "get_seg_ROIDescriptions",
                 seg["series_id"],
             ),
-            "body_part": controller.call_atom("get_BodyPartExamined", ref_sid),
-            "slice_thickness": controller.call_atom("get_SliceThickness", ref_sid),
+            "body_part": controller.call_dicom_atom("get_BodyPartExamined", ref_sid),
+            "slice_thickness": controller.call_dicom_atom("get_SliceThickness", ref_sid),
         }
 
     if question_id == "A-R4":
         ct_roots = [root for root in trees if root["modality"] == "CT"]
         kvp_values = [
-            controller.call_atom("get_ct_KVP", root["series_id"]) for root in ct_roots
+            controller.call_dicom_atom("get_ct_KVP", root["series_id"]) for root in ct_roots
         ]
         exposure_values = [
-            controller.call_atom("get_ct_Exposure", root["series_id"])
+            controller.call_dicom_atom("get_ct_Exposure", root["series_id"])
             for root in ct_roots
         ]
         return {
@@ -204,21 +204,21 @@ def compute_answer(question_id: str) -> dict[str, Any]:
     if question_id == "S-R1":
         rt_pet = _find_rtstruct_by_name(controller, nodes, "RTstruct_PET")
         rt_ct = _find_rtstruct_by_name(controller, nodes, "RTstruct_CT")
-        roi_names = controller.call_atom(
+        roi_names = controller.call_dicom_atom(
             "get_rtstruct_ROINames",
             rt_pet["series_id"],
         )
         return {
-            "pet_structure_set_name": controller.call_atom(
+            "pet_structure_set_name": controller.call_dicom_atom(
                 "get_rtstruct_StructureSetName",
                 rt_pet["series_id"],
             ),
-            "ct_structure_set_name": controller.call_atom(
+            "ct_structure_set_name": controller.call_dicom_atom(
                 "get_rtstruct_StructureSetName",
                 rt_ct["series_id"],
             ),
             "roi_names": roi_names,
-            "num_rois": controller.call_atom(
+            "num_rois": controller.call_dicom_atom(
                 "get_rtstruct_NumROIs",
                 rt_pet["series_id"],
             ),
@@ -226,12 +226,12 @@ def compute_answer(question_id: str) -> dict[str, Any]:
 
     if question_id == "S-R2":
         rt_pet = _find_rtstruct_by_name(controller, nodes, "RTstruct_PET")
-        ref_sid = controller.call_atom(
+        ref_sid = controller.call_dicom_atom(
             "get_rtstruct_ReferencedSeriesUID",
             rt_pet["series_id"],
         )
         return {
-            "structure_set_name": controller.call_atom(
+            "structure_set_name": controller.call_dicom_atom(
                 "get_rtstruct_StructureSetName",
                 rt_pet["series_id"],
             ),
@@ -240,17 +240,17 @@ def compute_answer(question_id: str) -> dict[str, Any]:
 
     if question_id == "S-R3":
         rt_ct = _find_rtstruct_by_name(controller, nodes, "RTstruct_CT")
-        ref_sid = controller.call_atom(
+        ref_sid = controller.call_dicom_atom(
             "get_rtstruct_ReferencedSeriesUID",
             rt_ct["series_id"],
         )
         return {
-            "structure_set_name": controller.call_atom(
+            "structure_set_name": controller.call_dicom_atom(
                 "get_rtstruct_StructureSetName",
                 rt_ct["series_id"],
             ),
-            "kvp": controller.call_atom("get_ct_KVP", ref_sid),
-            "slice_thickness": controller.call_atom("get_SliceThickness", ref_sid),
+            "kvp": controller.call_dicom_atom("get_ct_KVP", ref_sid),
+            "slice_thickness": controller.call_dicom_atom("get_SliceThickness", ref_sid),
         }
 
     if question_id == "S-R4":
@@ -258,16 +258,16 @@ def compute_answer(question_id: str) -> dict[str, Any]:
         pt = next(node for node in nodes if node["modality"] == "PT")
         mr_nodes = [node for node in nodes if node["modality"] == "MR"]
         return {
-            "ct_slice_thickness": controller.call_atom(
+            "ct_slice_thickness": controller.call_dicom_atom(
                 "get_SliceThickness",
                 ct["series_id"],
             ),
-            "pt_slice_thickness": controller.call_atom(
+            "pt_slice_thickness": controller.call_dicom_atom(
                 "get_SliceThickness",
                 pt["series_id"],
             ),
             "mr_slice_thicknesses": [
-                controller.call_atom("get_SliceThickness", node["series_id"])
+                controller.call_dicom_atom("get_SliceThickness", node["series_id"])
                 for node in mr_nodes
             ],
         }
@@ -277,22 +277,22 @@ def compute_answer(question_id: str) -> dict[str, Any]:
         thickest = max(
             mr_nodes,
             key=lambda node: float(
-                controller.call_atom("get_SliceThickness", node["series_id"])
+                controller.call_dicom_atom("get_SliceThickness", node["series_id"])
             ),
         )
         thickest_sid = thickest["series_id"]
-        max_thickness = controller.call_atom("get_SliceThickness", thickest_sid)
+        max_thickness = controller.call_dicom_atom("get_SliceThickness", thickest_sid)
         for node in nodes:
             if node["modality"] != "RTSTRUCT":
                 continue
-            ref_sid = controller.call_atom(
+            ref_sid = controller.call_dicom_atom(
                 "get_rtstruct_ReferencedSeriesUID",
                 node["series_id"],
             )
             if ref_sid == thickest_sid:
                 return {
                     "max_mr_slice_thickness": max_thickness,
-                    "structure_set_name": controller.call_atom(
+                    "structure_set_name": controller.call_dicom_atom(
                         "get_rtstruct_StructureSetName",
                         node["series_id"],
                     ),
@@ -303,24 +303,24 @@ def compute_answer(question_id: str) -> dict[str, Any]:
         pt = next(node for node in nodes if node["modality"] == "PT")
         sid = pt["series_id"]
         return {
-            "body_part": controller.call_atom("get_BodyPartExamined", sid),
-            "protocol_name": controller.call_atom("get_ProtocolName", sid),
-            "decay_correction": controller.call_atom("get_pt_DecayCorrection", sid),
+            "body_part": controller.call_dicom_atom("get_BodyPartExamined", sid),
+            "protocol_name": controller.call_dicom_atom("get_ProtocolName", sid),
+            "decay_correction": controller.call_dicom_atom("get_pt_DecayCorrection", sid),
         }
 
     if question_id == "S-R7":
         rt_t1 = _find_rtstruct_by_name(controller, nodes, "RTstruct_T1")
-        ref_sid = controller.call_atom(
+        ref_sid = controller.call_dicom_atom(
             "get_rtstruct_ReferencedSeriesUID",
             rt_t1["series_id"],
         )
         return {
-            "structure_set_name": controller.call_atom(
+            "structure_set_name": controller.call_dicom_atom(
                 "get_rtstruct_StructureSetName",
                 rt_t1["series_id"],
             ),
             "referenced_modality": _modality_for_series(controller, nodes, ref_sid),
-            "roi_names": controller.call_atom(
+            "roi_names": controller.call_dicom_atom(
                 "get_rtstruct_ROINames",
                 rt_t1["series_id"],
             ),

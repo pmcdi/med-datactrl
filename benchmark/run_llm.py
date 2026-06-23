@@ -94,7 +94,7 @@ def build_controller_prompt(question: dict[str, Any]) -> str:
         "DICOM patient case.\n\n"
         f"Patient case: {question['patient']}\n"
         "Use the provided tools to inspect the case. Do not guess values.\n"
-        "Start with get_patient_info, then list_atoms, then call_atom.\n"
+        "Start with get_dicom_patient_info, then list_dicom_atoms, then call_dicom_atom.\n"
         "When you have enough evidence, respond with ONLY a JSON object "
         f"containing exactly these keys: {_json_keys_hint(question)}\n"
         "Use the correct JSON types (strings, booleans, arrays) for each field."

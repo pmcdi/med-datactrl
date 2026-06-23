@@ -18,7 +18,7 @@
       "get_ct_ContrastBolusVolume",
       "get_ProtocolName"
     ],
-    "allows_get_patient_info": true
+    "allows_get_dicom_patient_info": true
   },
   {
     "id": "K-R2",
@@ -37,7 +37,7 @@
       "get_seg_ROINames",
       "get_seg_SegmentationType"
     ],
-    "allows_get_patient_info": true
+    "allows_get_dicom_patient_info": true
   },
   {
     "id": "K-R3",
@@ -57,7 +57,7 @@
       "get_seg_SegSpacing",
       "get_SeriesInstanceUID"
     ],
-    "allows_get_patient_info": true
+    "allows_get_dicom_patient_info": true
   },
   {
     "id": "K-R4",
@@ -80,7 +80,7 @@
       "get_ct_ConvolutionKernel",
       "get_PatientPosition"
     ],
-    "allows_get_patient_info": true
+    "allows_get_dicom_patient_info": true
   },
   {
     "id": "A-R1",
@@ -97,7 +97,7 @@
       "get_seg_ReferencedSeriesUID",
       "get_ProtocolName"
     ],
-    "allows_get_patient_info": true
+    "allows_get_dicom_patient_info": true
   },
   {
     "id": "A-R2",
@@ -112,7 +112,7 @@
     },
     "min_atom_calls": 3,
     "required_atoms": ["get_ProtocolName"],
-    "allows_get_patient_info": true
+    "allows_get_dicom_patient_info": true
   },
   {
     "id": "A-R3",
@@ -133,7 +133,7 @@
       "get_BodyPartExamined",
       "get_SliceThickness"
     ],
-    "allows_get_patient_info": true
+    "allows_get_dicom_patient_info": true
   },
   {
     "id": "A-R4",
@@ -148,7 +148,7 @@
     },
     "min_atom_calls": 6,
     "required_atoms": ["get_ct_KVP", "get_ct_Exposure"],
-    "allows_get_patient_info": true
+    "allows_get_dicom_patient_info": true
   },
   {
     "id": "S-R1",
@@ -168,7 +168,7 @@
       "get_rtstruct_ROINames",
       "get_rtstruct_NumROIs"
     ],
-    "allows_get_patient_info": true
+    "allows_get_dicom_patient_info": true
   },
   {
     "id": "S-R2",
@@ -186,7 +186,7 @@
       "get_rtstruct_ReferencedSeriesUID",
       "get_Modality"
     ],
-    "allows_get_patient_info": true
+    "allows_get_dicom_patient_info": true
   },
   {
     "id": "S-R3",
@@ -206,7 +206,7 @@
       "get_ct_KVP",
       "get_SliceThickness"
     ],
-    "allows_get_patient_info": true
+    "allows_get_dicom_patient_info": true
   },
   {
     "id": "S-R4",
@@ -221,7 +221,7 @@
     },
     "min_atom_calls": 6,
     "required_atoms": ["get_Modality", "get_SliceThickness"],
-    "allows_get_patient_info": true
+    "allows_get_dicom_patient_info": true
   },
   {
     "id": "S-R5",
@@ -239,7 +239,7 @@
       "get_rtstruct_ReferencedSeriesUID",
       "get_rtstruct_StructureSetName"
     ],
-    "allows_get_patient_info": true
+    "allows_get_dicom_patient_info": true
   },
   {
     "id": "S-R6",
@@ -258,7 +258,7 @@
       "get_ProtocolName",
       "get_pt_DecayCorrection"
     ],
-    "allows_get_patient_info": true
+    "allows_get_dicom_patient_info": true
   },
   {
     "id": "S-R7",
@@ -277,6 +277,6 @@
       "get_rtstruct_ReferencedSeriesUID",
       "get_rtstruct_ROINames"
     ],
-    "allows_get_patient_info": true
+    "allows_get_dicom_patient_info": true
   }
 ]

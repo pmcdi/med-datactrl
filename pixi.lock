@@ -77,6 +77,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/9e/c9/b2622292ea83fbb4ec318f5b9ab867d0a28ab43c5717bb85b0a5f6b3b0a4/networkx-3.6.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/a5/9d/3584b9984ca4c047aea75214ce1a4c4c73d849bd71b604264b7f5653f8a8/numpy-2.4.6-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/20/74/925d7b3892927e9804aaf58d374a45dc28e4420ff90e992272b77286343e/openai-2.41.1-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/89/be/7abab64f5dc53af384614f43ee2e5fab2b505cbb6d4c561172457d624eab/openslide_python-1.4.6-cp311-abi3-manylinux1_x86_64.manylinux_2_5_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/df/b2/87e62e8c3e2f4b32e5fe99e0b86d576da1312593b39f47d8ceef365e95ed/packaging-26.2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/12/c5/cbb1ffefb20a93d3f0e1fdcda699fb84976210d411b008f97f48bf6ce27e/pandas-3.0.2-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/67/ee/21d4e8536afd1a328f01b359b4d3997b291ffd35a237c877b331c1c3b71c/pillow-12.2.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
@@ -1056,11 +1057,12 @@ packages:
 - pypi: ./
   name: med-datactrl
   version: 0.1.0
-  sha256: 2e76877c48c00922f7a6398c0c8ebf1b4a2ae9f3e7cb53120fb9dc2034ea014b
+  sha256: 6a352a5b6d74317f4272caca19565b73faf84c4af048a6ba5992f4e8c69e007b
   requires_dist:
   - pydantic>=2.13.4,<3
   - med-imagetools>=2.15.0,<3
   - litellm>=1.0.0
+  - openslide-python>=1.4.6,<2
   requires_python: '>=3.11'
 - pypi: https://files.pythonhosted.org/packages/cb/c4/9975cd81ba3323b53d8fed99a8ecebf20b2e2b54386f1f0d490a79328ecb/med_imagetools-2.15.0-py3-none-any.whl
   name: med-imagetools
@@ -1180,6 +1182,13 @@ packages:
   - numpy>=2.0.2 ; extra == 'voice-helpers'
   - sounddevice>=0.5.1 ; extra == 'voice-helpers'
   requires_python: '>=3.9'
+- pypi: https://files.pythonhosted.org/packages/89/be/7abab64f5dc53af384614f43ee2e5fab2b505cbb6d4c561172457d624eab/openslide_python-1.4.6-cp311-abi3-manylinux1_x86_64.manylinux_2_5_x86_64.whl
+  name: openslide-python
+  version: 1.4.6
+  sha256: 59caee04d657cccc88457148a34a507d492fd4ce9c7bcc16fca7d3bbd0a77fa0
+  requires_dist:
+  - pillow
+  requires_python: '>=3.10'
 - conda: https://conda.anaconda.org/conda-forge/linux-64/openssl-3.6.3-h35e630c_0.conda
   sha256: d48f5c22b9897c01e4dff3680f1f57ceb02711ab9c62f74339b080419dfad34b
   md5: 79dd2074b5cd5c5c6b2930514a11e22d
