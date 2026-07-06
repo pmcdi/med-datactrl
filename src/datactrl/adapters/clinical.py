@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from pypdf import PdfReader
+
 from datactrl.adapters.discovery import NOTE_EXTENSIONS, iter_patient_files
 
 PREVIEW_LEN = 200
@@ -45,7 +47,7 @@ class ClinicalAdapter:
         record = self._require_note(note_id)
         if record.format == "json":
             return json.loads(record.path.read_text())
-        return record.path.read_text()
+        return _read_note_text(record.path, record.format)
 
     def _require_note(self, note_id: str) -> ClinicalNoteRecord:
         try:
@@ -69,9 +71,17 @@ def _discover_notes(patient_dir: Path) -> dict[str, ClinicalNoteRecord]:
     return notes
 
 
+def _read_note_text(path: Path, fmt: str) -> str:
+    if fmt == "pdf":
+        reader = PdfReader(path)
+        pages = [page.extract_text() or "" for page in reader.pages]
+        return "\n\n".join(pages).strip()
+    return path.read_text()
+
+
 def _note_summary(adapter: ClinicalAdapter, note_id: str) -> dict[str, Any]:
     record = adapter.notes[note_id]
-    text = record.path.read_text()
+    text = _read_note_text(record.path, record.format)
     preview = text[:PREVIEW_LEN]
     if len(text) > PREVIEW_LEN:
         preview += "..."

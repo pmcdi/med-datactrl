@@ -67,6 +67,24 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         ["patient", "name", "series_id"],
     ),
     _tool(
+        "get_dicom_image",
+        "Return a basic LLM-ready PNG preview payload for one DICOM series.",
+        {
+            "patient": _patient_parameter(),
+            "series_id": {"type": "string"},
+        },
+        ["patient", "series_id"],
+    ),
+    _tool(
+        "get_dicom_overlay_image",
+        "Return a basic overlay-marked PNG preview payload for one DICOM series.",
+        {
+            "patient": _patient_parameter(),
+            "series_id": {"type": "string"},
+        },
+        ["patient", "series_id"],
+    ),
+    _tool(
         "list_clinical_notes",
         "List clinical note summaries (note_id, filename, preview) for a patient.",
         {"patient": _patient_parameter()},
@@ -103,6 +121,24 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         },
         ["patient", "name", "slide_id"],
     ),
+    _tool(
+        "get_pathology_image",
+        "Return a basic LLM-ready PNG preview payload for one pathology slide.",
+        {
+            "patient": _patient_parameter(),
+            "slide_id": {"type": "string"},
+        },
+        ["patient", "slide_id"],
+    ),
+    _tool(
+        "get_pathology_overlay_image",
+        "Return a basic overlay-marked PNG preview payload for one pathology slide.",
+        {
+            "patient": _patient_parameter(),
+            "slide_id": {"type": "string"},
+        },
+        ["patient", "slide_id"],
+    ),
 ]
 
 
@@ -117,11 +153,15 @@ class ControllerToolSession:
             "get_dicom_patient_info": self.get_dicom_patient_info,
             "list_dicom_atoms": self.list_dicom_atoms,
             "call_dicom_atom": self.call_dicom_atom,
+            "get_dicom_image": self.get_dicom_image,
+            "get_dicom_overlay_image": self.get_dicom_overlay_image,
             "list_clinical_notes": self.list_clinical_notes,
             "get_clinical_note": self.get_clinical_note,
             "get_pathology_info": self.get_pathology_info,
             "list_slide_atoms": self.list_slide_atoms,
             "call_slide_atom": self.call_slide_atom,
+            "get_pathology_image": self.get_pathology_image,
+            "get_pathology_overlay_image": self.get_pathology_overlay_image,
         }
 
     def _controller(self, patient: str) -> Controller:
@@ -146,6 +186,16 @@ class ControllerToolSession:
         )
         return self._controller(patient).call_dicom_atom(name, series_id)
 
+    def get_dicom_image(self, patient: str, series_id: str) -> dict[str, Any]:
+        return self._controller(patient).get_dicom_image(series_id)
+
+    def get_dicom_overlay_image(
+        self,
+        patient: str,
+        series_id: str,
+    ) -> dict[str, Any]:
+        return self._controller(patient).get_dicom_overlay_image(series_id)
+
     def list_clinical_notes(self, patient: str) -> list[dict[str, Any]]:
         return self._controller(patient).list_clinical_notes()
 
@@ -163,6 +213,16 @@ class ControllerToolSession:
             {"patient": patient, "name": name, "slide_id": slide_id}
         )
         return self._controller(patient).call_slide_atom(name, slide_id)
+
+    def get_pathology_image(self, patient: str, slide_id: str) -> dict[str, Any]:
+        return self._controller(patient).get_pathology_image(slide_id)
+
+    def get_pathology_overlay_image(
+        self,
+        patient: str,
+        slide_id: str,
+    ) -> dict[str, Any]:
+        return self._controller(patient).get_pathology_overlay_image(slide_id)
 
     def dispatch(self, name: str, arguments: str | dict[str, Any]) -> str:
         args = json.loads(arguments) if isinstance(arguments, str) else arguments

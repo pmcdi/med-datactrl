@@ -10,7 +10,7 @@ from datactrl import Controller
 
 BENCHMARK_DIR = Path(__file__).parent
 QUESTIONS_PATH = BENCHMARK_DIR / "clinical_questions.json"
-DATA_ROOT = BENCHMARK_DIR.parent / "data"
+DATA_ROOT = BENCHMARK_DIR.parent / "data" / "rawdata"
 
 PATIENT_DIRS = {
     "KiTS-00008": DATA_ROOT / "KiTS-00008",

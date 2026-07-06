@@ -8,6 +8,7 @@ import openslide
 
 from datactrl.adapters.discovery import SLIDE_EXTENSIONS, iter_patient_files
 from datactrl.registry import register_slide_atoms
+from datactrl.utils.image import to_llm_image_payload
 
 
 @dataclass(frozen=True)
@@ -45,6 +46,25 @@ class PathologyAdapter:
 
         self._require_slide(slide_id)
         return dict(self._open_slide(slide_id).properties)
+
+    def get_pathology_image(self, slide_id: str) -> dict[str, Any]:
+        """Return a basic LLM-ready thumbnail preview for one pathology slide."""
+
+        slide = self._open_slide(slide_id)
+        image = slide.get_thumbnail((1024, 1024)).convert("RGB")
+        return to_llm_image_payload(
+            id=slide_id,
+            kind="pathology",
+            image=image,
+            meta={"overlay": False},
+        )
+
+    def get_pathology_overlay_image(self, slide_id: str) -> dict[str, Any]:
+        """Return a basic overlay-marked pathology preview for one slide."""
+
+        payload = self.get_pathology_image(slide_id)
+        payload["meta"] = {"overlay": True}
+        return payload
 
     def list_slide_atoms(self) -> list[str]:
         """Return sorted names of registered slide atom getters."""

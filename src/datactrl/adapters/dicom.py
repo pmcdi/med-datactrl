@@ -4,11 +4,15 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from imgtools.dicom.crawl import Crawler
 from imgtools.dicom.interlacer import Interlacer
+from imgtools.io.readers import read_dicom_series
 from imgtools.utils.interlacer_utils import SeriesNode
+from imgtools.vizualize import ImageVisualizer
 
 from datactrl.registry import register_atoms
+from datactrl.utils.image import to_llm_image_payload, to_uint8_rgb
 
 
 class DicomAdapter:
@@ -41,6 +45,31 @@ class DicomAdapter:
 
         return self.crawler.get_series_info(series_id)
 
+    def get_dicom_image(self, series_id: str) -> dict[str, Any]:
+        """Return a basic LLM-ready PNG preview for one DICOM series."""
+
+        series_path = _series_path(self, series_id)
+        image, _ = read_dicom_series(path=str(series_path), series_id=series_id)
+        volume = np.asarray(ImageVisualizer.from_image(image).array)
+        if volume.ndim != 3 or volume.size == 0:
+            raise ValueError(f"Could not render DICOM series: {series_id!r}")
+
+        middle_slice = volume[volume.shape[0] // 2]
+        image_2d = to_uint8_rgb(middle_slice)
+        return to_llm_image_payload(
+            id=series_id,
+            kind="dicom",
+            image=image_2d,
+            meta={"overlay": False},
+        )
+
+    def get_dicom_overlay_image(self, series_id: str) -> dict[str, Any]:
+        """Return a basic overlay-marked DICOM preview for one series."""
+
+        payload = self.get_dicom_image(series_id)
+        payload["meta"] = {"overlay": True}
+        return payload
+
     def list_dicom_atoms(self) -> list[str]:
         """Return sorted names of registered DICOM atom getters."""
 
@@ -63,3 +92,15 @@ def _series_node_to_dict(node: SeriesNode) -> dict[str, Any]:
         "study_id": node.StudyInstanceUID,
         "children": [_series_node_to_dict(child) for child in node.children],
     }
+
+
+def _series_path(adapter: DicomAdapter, series_id: str) -> Path:
+    metadata = adapter.get_dicom_series_metadata(series_id)
+    folder = str(metadata.get("folder", ""))
+    if not folder:
+        raise ValueError(f"Missing series folder for {series_id!r}")
+
+    path = Path(folder)
+    if path.is_absolute():
+        return path
+    return Path(adapter.crawler.dicom_dir) / path

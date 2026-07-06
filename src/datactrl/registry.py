@@ -37,6 +37,9 @@ def register_atoms(adapter: DicomAdapter) -> dict[str, AtomFn]:
                 tag,
             )
 
+    atoms["get_dicom_image"] = _get_dicom_image
+    atoms["get_dicom_overlay_image"] = _get_dicom_overlay_image
+
     return atoms
 
 
@@ -47,10 +50,13 @@ def register_slide_atoms(adapter: PathologyAdapter) -> dict[str, SlideAtomFn]:
     for slide_id in adapter.slides:
         present_keys.update(adapter.get_slide_metadata(slide_id))
 
-    return {
+    atoms = {
         f"get_pathology_{_normalize_property_key(key)}": _make_slide_getter(key)
         for key in sorted(present_keys)
     }
+    atoms["get_pathology_image"] = _get_pathology_image
+    atoms["get_pathology_overlay_image"] = _get_pathology_overlay_image
+    return atoms
 
 
 def _present_dicom_keys(
@@ -101,3 +107,19 @@ def _make_slide_getter(property_key: str) -> SlideAtomFn:
 
 def _normalize_property_key(key: str) -> str:
     return key.replace(".", "_").replace(" ", "_")
+
+
+def _get_dicom_image(adapter: DicomAdapter, series_id: str) -> Any:
+    return adapter.get_dicom_image(series_id)
+
+
+def _get_dicom_overlay_image(adapter: DicomAdapter, series_id: str) -> Any:
+    return adapter.get_dicom_overlay_image(series_id)
+
+
+def _get_pathology_image(adapter: PathologyAdapter, slide_id: str) -> Any:
+    return adapter.get_pathology_image(slide_id)
+
+
+def _get_pathology_overlay_image(adapter: PathologyAdapter, slide_id: str) -> Any:
+    return adapter.get_pathology_overlay_image(slide_id)

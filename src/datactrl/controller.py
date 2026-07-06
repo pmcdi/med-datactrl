@@ -6,8 +6,12 @@ import logging
 from pathlib import Path
 from typing import Any, TypeVar
 
-from datactrl.adapters import ClinicalAdapter, DicomAdapter, PathologyAdapter
-from datactrl.adapters.discovery import discover_modalities
+from datactrl.adapters import (
+    ClinicalAdapter, 
+    DicomAdapter, 
+    PathologyAdapter, 
+    discover_modalities
+)
 
 logger = logging.getLogger("datactrl")
 logging.basicConfig(level=logging.INFO)
@@ -72,6 +76,16 @@ class Controller:
 
         return self._require(self._dicom, "DICOM").get_dicom_series_metadata(series_id)
 
+    def get_dicom_image(self, series_id: str) -> dict[str, Any]:
+        """Return a basic LLM-ready DICOM preview image payload."""
+
+        return self._require(self._dicom, "DICOM").get_dicom_image(series_id)
+
+    def get_dicom_overlay_image(self, series_id: str) -> dict[str, Any]:
+        """Return a basic overlay-marked DICOM preview payload."""
+
+        return self._require(self._dicom, "DICOM").get_dicom_overlay_image(series_id)
+
     def list_dicom_atoms(self) -> list[str]:
         """Return registered DICOM atom getter names."""
 
@@ -93,6 +107,18 @@ class Controller:
         """Return OpenSlide properties for one slide."""
 
         return self._require(self._pathology, "pathology").get_slide_metadata(slide_id)
+
+    def get_pathology_image(self, slide_id: str) -> dict[str, Any]:
+        """Return a basic LLM-ready pathology preview image payload."""
+
+        return self._require(self._pathology, "pathology").get_pathology_image(slide_id)
+
+    def get_pathology_overlay_image(self, slide_id: str) -> dict[str, Any]:
+        """Return a basic overlay-marked pathology preview payload."""
+
+        return self._require(self._pathology, "pathology").get_pathology_overlay_image(
+            slide_id
+        )
 
     def list_slide_atoms(self) -> list[str]:
         """Return registered pathology slide atom getter names."""

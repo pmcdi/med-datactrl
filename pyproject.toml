@@ -12,6 +12,7 @@ dependencies = [
     "med-imagetools>=2.15.0,<3",
     "litellm>=1.0.0",
     "openslide-python>=1.4.6,<2",
+    "pypdf>=6.0.0,<7",
 ]
 
 [tool.setuptools.packages.find]

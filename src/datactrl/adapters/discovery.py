@@ -9,7 +9,7 @@ logger = logging.getLogger("datactrl")
 
 DICOM_EXTENSION = ".dcm"
 SLIDE_EXTENSIONS = {".svs", ".tif", ".tiff"}
-NOTE_EXTENSIONS = {".txt", ".json", ".md"}
+NOTE_EXTENSIONS = {".txt", ".json", ".md", ".pdf"}
 
 
 def iter_patient_files(patient_dir: Path) -> list[Path]:
