@@ -1,23 +1,106 @@
 # med-datactrl
 
-## API
+Local medical data access harness: open a filesystem root, auto-discover DICOM / structured data / clinical notes, and fetch bounded slices for humans or LLM tools.
 
-### `Controller`
+See [DESIGN.md](DESIGN.md) for scope.
 
-| Method | Description |
-|--------|-------------|
-| `from_patient_directory(directory)` | Discover modalities from file paths and return a configured controller. |
-| `get_dicom_patient_info()` | Return a dict mapping patient IDs to lists of DICOM series tree nodes. |
-| `get_dicom_series_metadata(series_id)` | Return the full DICOM metadata dict for a series. |
-| `get_dicom_image(series_id)` | Return a basic LLM-ready PNG payload for one DICOM series. |
-| `get_dicom_overlay_image(series_id)` | Return a basic overlay-marked PNG payload for one DICOM series. |
-| `list_dicom_atoms()` | Return sorted names of all registered DICOM atom getters. |
-| `call_dicom_atom(name, series_id)` | Invoke a DICOM atom getter and return its value. |
-| `get_pathology_info()` | Return pathology slide summaries. |
-| `get_slide_metadata(slide_id)` | Return OpenSlide properties for a slide. |
-| `get_pathology_image(slide_id)` | Return a basic LLM-ready PNG payload for one pathology slide. |
-| `get_pathology_overlay_image(slide_id)` | Return a basic overlay-marked PNG payload for one pathology slide. |
-| `list_slide_atoms()` | Return pathology slide atom getters. |
-| `call_slide_atom(name, slide_id)` | Invoke a pathology slide atom getter. |
-| `list_clinical_notes()` | Return clinical note summaries. |
-| `get_clinical_note(note_id)` | Return the full text or JSON content of a clinical note. |
+## Quick start
+
+```python
+from datactrl import Case
+
+case = Case.open("/path/to/case")
+report = case.discover()
+print(report.to_dict())  # case_id, resources, counts, unknown
+
+# Progressive disclosure: describe → fetch(view=...)
+for ref in report.resources:
+    print(case.describe(ref.id)["views"])
+
+# Structured rows
+for table in report.structured:
+    print(case.fetch(table.id, view="rows", limit=10))
+
+# Notes
+for note in report.notes:
+    print(case.fetch(note.id, view="text", max_chars=2000))
+
+# DICOM metadata / preview (any slice_index)
+for series in report.dicom:
+    print(case.describe(series.id)["links"])  # structural SEG↔CT etc.
+print(case.fetch(report.dicom[0].id, view="metadata"))
+print(case.fetch(report.dicom[0].id, view="preview", slice_index=0))
+print(case.dicom_groups("CT,SEG"))
+```
+
+## Links
+
+Resources can be connected in two ways:
+
+| Source | Origin | Persisted? |
+|--------|--------|------------|
+| `structural` | Adapters (e.g. DICOM SEG→CT references from imagetools) | Yes — derived from files |
+| `asserted` | User or agent via `assert_link` | No — session-only overlay on the open `Case` |
+
+Structural links appear automatically after discovery (see `case.describe(series_id)["links"]` for DICOM). Asserted links let you record cross-resource relationships the harness did not infer — for example, that a note mentions a lab table, or that two findings support the same hypothesis.
+
+```python
+case = Case.open("/path/to/case")
+note = case.report.notes[0]
+table = case.report.structured[0]
+
+# Record a relationship between two known resources
+link = case.assert_link(note.id, table.id, relation="mentions")
+# → {"from_id": "...", "to_id": "...", "relation": "mentions", "source": "asserted", "meta": {}}
+
+# Asserted links are merged into describe() for either endpoint
+case.describe(note.id)["links"]   # includes the link above
+case.links(note.id)               # structural + asserted for one resource
+case.links()                      # case-wide links (DICOM structural + all asserted)
+```
+
+Notes:
+
+- Both `from_id` and `to_id` must already exist in the discovery index; unknown ids raise `ResourceNotFound`.
+- `relation` is a free-form label (`mentions`, `supports`, `same_patient`, …).
+- Optional `meta={...}` attaches extra key/value data to the link.
+- Asserted links are **not written to disk** — they live only for the lifetime of the `Case` object (or tool session). Re-open the case and they are gone.
+
+Via tool dispatch (same semantics, JSON in/out):
+
+```python
+from datactrl.tools import dispatch
+
+dispatch("assert_link", {
+    "root": "/path/to/case",
+    "from_id": "note:abc123",
+    "to_id": "structured:def456",
+    "relation": "mentions",
+})
+dispatch("links", {"root": "/path/to/case", "resource_id": "note:abc123"})
+```
+
+## Tool dispatch
+
+```python
+from datactrl.tools import TOOL_DEFINITIONS, dispatch
+
+print(dispatch("discover", {"root": "/path/to/case"}))
+# Then: describe / fetch / links / assert_link / dicom_tree / dicom_groups
+```
+
+## Install
+
+```bash
+pixi install
+# or
+pip install -e .
+```
+
+## Tests
+
+```bash
+pixi run pytest
+# or
+pytest
+```

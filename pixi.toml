@@ -3,16 +3,62 @@ authors = ["Joshua Siraj <joshua.siraj@ryerson.ca>"]
 channels = ["conda-forge"]
 name = "med-datactrl"
 platforms = ["linux-64"]
-version = "0.1.0"
-
-[tasks]
-benchmark = "python -m benchmark.run_llm"
+version = "0.2.0"
 
 [dependencies]
 python = ">=3.11,<3.14"
 
 [pypi-dependencies]
 med-datactrl = { path = ".", editable = true }
-litellm = ">=1.0.0"
-openslide-python = ">=1.4.6, <2"
-pypdf = ">=6.0.0, <7"
+
+[environments]
+default = ["dev"]
+dev = ["test", "style", "dev"]
+test = ["test", "style"]
+benchmark = ["test", "benchmark"]
+
+############################################## DEV ###############################################
+
+[feature.dev.pypi-dependencies]
+med-datactrl = { path = ".", editable = true }
+ipywidgets = ">=8.0.0,<9"
+
+############################################## TEST ################################################
+
+[feature.test.pypi-dependencies]
+med-datactrl = { path = ".", editable = true }
+pytest = ">=8.0.0,<9"
+
+[feature.test.tasks.test]
+cmd = ["pytest", "--verbose"]
+inputs = ["src", "tests"]
+description = "Run pytest"
+
+############################################## STYLE ###############################################
+# See configs/ruff.toml for the configuration
+
+[feature.style.pypi-dependencies]
+ruff = ">=0.4.4"
+mypy = ">=1.15.0,<2"
+
+[feature.style.tasks]
+ruff-check.cmd = ["ruff", "check", "src"]
+ruff-check.description = "Run ruff check"
+ruff-format.cmd = ["ruff", "format", "src"]
+ruff-format.description = "Run ruff format"
+type-check.cmd = ["mypy", "-p", "datactrl"]
+type-check.description = "Run mypy type check"
+qc.depends-on = ["ruff-format", "ruff-check", "type-check"]
+qc.description = "Quality check: ruff & mypy"
+
+############################################## BENCHMARK ###########################################
+
+[feature.benchmark.pypi-dependencies]
+med-datactrl = { path = ".", editable = true }
+litellm = ">=1.95.0,<2"
+python-dotenv = ">=1.0.0,<2"
+pydicom = ">=3.0.0,<4"
+
+[feature.benchmark.tasks.benchmark]
+cmd = ["python", "-m", "benchmark.run"]
+description = "Run LLM benchmark (harness vs raw)"

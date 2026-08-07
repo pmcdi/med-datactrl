@@ -1,3 +1,6 @@
+benchmark
+temp.py
+
 # pixi environments
 .pixi
 !.pixi/config.toml
