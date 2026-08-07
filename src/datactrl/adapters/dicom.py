@@ -185,8 +185,8 @@ class DicomAdapter:
     def _fetch_preview(self, resource_id: str, opts: dict[str, Any]) -> FetchResult:
         """Render one slice of a series as a base64 PNG preview."""
         import numpy as np
+        import SimpleITK as sitk
         from imgtools.io.readers import read_dicom_series
-        from imgtools.vizualize import ImageVisualizer
 
         from datactrl.utils.image import to_llm_image_payload, to_uint8_rgb
 
@@ -194,7 +194,7 @@ class DicomAdapter:
         series_uid = _series_uid(resource_id)
         series_path = _series_path(self._require_crawler(), series_uid)
         image, _ = read_dicom_series(path=str(series_path), series_id=series_uid)
-        volume = np.asarray(ImageVisualizer.from_image(image).array)
+        volume = np.asarray(sitk.GetArrayFromImage(image))
         if volume.ndim != 3 or volume.size == 0:
             raise ValueError(f"Could not render DICOM series: {resource_id!r}")
 

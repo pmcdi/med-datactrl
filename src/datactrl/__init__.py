@@ -1,5 +1,6 @@
 """Public API for the med-datactrl harness."""
 
+from datactrl.adapters.nifti import NiftiCrawlOptions
 from datactrl.case import Case
 from datactrl.logging import configure as configure_logging
 from datactrl.types import (
@@ -19,6 +20,7 @@ __all__ = [
     "FetchResult",
     "Link",
     "Modality",
+    "NiftiCrawlOptions",
     "ResourceRef",
     "ViewSpec",
     "configure_logging",

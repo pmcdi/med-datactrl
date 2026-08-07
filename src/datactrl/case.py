@@ -9,6 +9,7 @@ from typing import Any
 
 from datactrl.adapters.base import Adapter
 from datactrl.adapters.dicom import DicomAdapter
+from datactrl.adapters.nifti import NiftiAdapter, NiftiCrawlOptions
 from datactrl.adapters.notes import NotesAdapter
 from datactrl.adapters.structured import StructuredAdapter
 from datactrl.discovery.classify import classify_files
@@ -33,18 +34,30 @@ class Case:
     Canonical agent API: ``discover`` → ``describe`` → ``fetch(view=...)``.
     """
 
-    def __init__(self, root: Path) -> None:
-        """Bind a case to ``root`` without running discovery."""
+    def __init__(
+        self,
+        root: Path,
+        *,
+        nifti: NiftiCrawlOptions | None = None,
+    ) -> None:
+        """Bind a case to ``root`` without running discovery.
+
+        Args:
+            root: Filesystem path to the case directory.
+            nifti: Optional imagetools crawl patterns for scan/mask linking.
+        """
         self.root = root.resolve()
         self.case_id = _case_id(self.root)
 
         self._dicom = DicomAdapter()
         self._structured = StructuredAdapter()
         self._notes = NotesAdapter()
+        self._nifti = NiftiAdapter(nifti)
         self._adapters: dict[Modality, Adapter] = {
             Modality.DICOM: self._dicom,
             Modality.STRUCTURED: self._structured,
             Modality.NOTE: self._notes,
+            Modality.NIFTI: self._nifti,
         }
 
         self._index: dict[str, ResourceRef] = {}
@@ -52,11 +65,17 @@ class Case:
         self._asserted_links: list[Link] = []
 
     @classmethod
-    def open(cls, root: str | Path) -> Case:
+    def open(
+        cls,
+        root: str | Path,
+        *,
+        nifti: NiftiCrawlOptions | None = None,
+    ) -> Case:
         """Open a directory and run an initial ``discover`` pass.
 
         Args:
             root: Filesystem path to the case directory.
+            nifti: Optional imagetools crawl patterns for scan/mask linking.
 
         Returns:
             A discovered case ready for ``describe`` / ``fetch``.
@@ -68,7 +87,7 @@ class Case:
         if not path.is_dir():
             raise ValueError(f"Root is not a directory: {path}")
 
-        case = cls(path)
+        case = cls(path, nifti=nifti)
         case.discover()
         return case
 
@@ -92,9 +111,10 @@ class Case:
             self._structured.ingest(self.root, buckets[Modality.STRUCTURED])
         )
         note_refs = list(self._notes.ingest(self.root, buckets[Modality.NOTE]))
+        nifti_refs = list(self._nifti.ingest(self.root, buckets[Modality.NIFTI]))
 
         resources = sorted(
-            [*dicom_refs, *structured_refs, *note_refs],
+            [*dicom_refs, *structured_refs, *note_refs, *nifti_refs],
             key=lambda ref: (ref.modality.value, ref.id),
         )
         unknown = [
@@ -111,11 +131,13 @@ class Case:
         )
 
         log.info(
-            "discovered %d resources (dicom=%d structured=%d notes=%d unknown=%d)",
+            "discovered %d resources "
+            "(dicom=%d structured=%d notes=%d nifti=%d unknown=%d)",
             len(resources),
             len(dicom_refs),
             len(structured_refs),
             len(note_refs),
+            len(nifti_refs),
             len(unknown),
         )
         return self._report
@@ -187,11 +209,16 @@ class Case:
             for ref in self.report.dicom:
                 described = self._dicom.describe(ref.id)
                 structural.extend(described.links)
+            for ref in self.report.nifti:
+                described = self._nifti.describe(ref.id)
+                structural.extend(described.links)
         else:
             ref = self._require(resource_id)
 
             if ref.modality == Modality.DICOM:
                 structural.extend(self._dicom.describe(resource_id).links)
+            elif ref.modality == Modality.NIFTI:
+                structural.extend(self._nifti.describe(resource_id).links)
 
             structural.extend(
                 link
@@ -301,6 +328,26 @@ class Case:
             opts["slice_index"] = slice_index
 
         return self.fetch(series_id, view="preview", **opts)
+
+    def fetch_nifti_metadata(self, resource_id: str) -> dict[str, Any]:
+        """Fetch NIfTI geometry metadata and structural references."""
+        self._ensure_modality(Modality.NIFTI)
+        return self.fetch(resource_id, view="metadata")
+
+    def fetch_nifti_preview(
+        self,
+        resource_id: str,
+        *,
+        slice_index: int | None = None,
+    ) -> dict[str, Any]:
+        """Fetch a single-slice PNG preview for a NIfTI volume."""
+        self._ensure_modality(Modality.NIFTI)
+
+        opts: dict[str, Any] = {}
+        if slice_index is not None:
+            opts["slice_index"] = slice_index
+
+        return self.fetch(resource_id, view="preview", **opts)
 
     def dicom_tree(self) -> dict[str, Any]:
         """Return the DICOM patient/series reference forest."""

@@ -14,6 +14,7 @@ class Modality(StrEnum):
     DICOM = "dicom"
     STRUCTURED = "structured"
     NOTE = "note"
+    NIFTI = "nifti"
 
 
 @dataclass(frozen=True)
@@ -161,6 +162,11 @@ class DiscoverReport:
         """Clinical note resources."""
         return [ref for ref in self.resources if ref.modality == Modality.NOTE]
 
+    @property
+    def nifti(self) -> list[ResourceRef]:
+        """NIfTI volume resources."""
+        return [ref for ref in self.resources if ref.modality == Modality.NIFTI]
+
     def to_dict(self) -> dict[str, Any]:
         """Serialize the discovery report for API responses."""
         return {
@@ -170,6 +176,7 @@ class DiscoverReport:
                 "dicom": len(self.dicom),
                 "structured": len(self.structured),
                 "notes": len(self.notes),
+                "nifti": len(self.nifti),
                 "unknown": len(self.unknown),
                 "total": len(self.resources),
             },
@@ -177,6 +184,7 @@ class DiscoverReport:
             "dicom": [ref.to_dict() for ref in self.dicom],
             "structured": [ref.to_dict() for ref in self.structured],
             "notes": [ref.to_dict() for ref in self.notes],
+            "nifti": [ref.to_dict() for ref in self.nifti],
             "unknown": list(self.unknown),
         }
 

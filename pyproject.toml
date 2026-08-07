@@ -1,13 +1,14 @@
 [project]
 name = "med-datactrl"
 version = "0.2.0"
-description = "Local medical data access harness for DICOM, structured data, and notes"
+description = "Local medical data access harness for DICOM, structured data, notes, and NIfTI"
 authors = [{ name = "Joshua Siraj", email = "joshuasiraj@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 dependencies = [
     "pydantic>=2.13.4,<3",
-    "med-imagetools>=2.15.0,<3",
+    # Pin nifti-index branch until PR #438 lands on a release.
+    "med-imagetools @ git+https://github.com/bhklab/med-imagetools.git@ccaa96f5622e0da19f41c37b0cfa5651a9bace9f",
     "pypdf>=6.0.0,<7",
     "Pillow>=10.0.0",
     "numpy>=1.26.0",
@@ -19,6 +20,9 @@ parquet = ["pyarrow>=14.0.0"]
 [build-system]
 build-backend = "hatchling.build"
 requires = ["hatchling"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/datactrl"]

@@ -47,7 +47,9 @@ def test_dicom_discover_and_metadata(tmp_path: Path):
     series_dir = tmp_path / "ct"
     series_dir.mkdir()
     for i in range(2):
-        _write_tiny_ct(series_dir / f"img{i}.dcm", series_uid=series_uid, instance_number=i + 1)
+        _write_tiny_ct(
+            series_dir / f"img{i}.dcm", series_uid=series_uid, instance_number=i + 1
+        )
 
     # Mix in a note so discovery is multimodal.
     (tmp_path / "note.txt").write_text("synthetic case")

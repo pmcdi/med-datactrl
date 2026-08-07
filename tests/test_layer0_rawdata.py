@@ -27,11 +27,7 @@ CASE_EXPECTATIONS = {
 def _available_cases() -> list[str]:
     if not RAWDATA.is_dir():
         return []
-    return sorted(
-        name
-        for name in CASE_EXPECTATIONS
-        if (RAWDATA / name).is_dir()
-    )
+    return sorted(name for name in CASE_EXPECTATIONS if (RAWDATA / name).is_dir())
 
 
 AVAILABLE = _available_cases()
@@ -72,11 +68,12 @@ def test_layer0_discover_rawdata_case(case_name: str):
         assert preview["data"]["text"]
 
     # Hidden caches must not surface as resources.
-    all_paths = (
-        [ref.path for ref in report.resources]
-        + [item["path"] for item in report.unknown]
+    all_paths = [ref.path for ref in report.resources] + [
+        item["path"] for item in report.unknown
+    ]
+    assert not any(
+        part.startswith(".") for path in all_paths for part in Path(path).parts
     )
-    assert not any(part.startswith(".") for path in all_paths for part in Path(path).parts)
 
 
 @pytest.mark.skipif("TCGA-DD-A4NF" not in AVAILABLE, reason="TCGA-DD-A4NF not present")

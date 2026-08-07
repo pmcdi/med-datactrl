@@ -1,6 +1,6 @@
 # med-datactrl
 
-Local medical data access harness: open a filesystem root, auto-discover DICOM / structured data / clinical notes, and fetch bounded slices for humans or LLM tools.
+Local medical data access harness: open a filesystem root, auto-discover DICOM / structured data / clinical notes / NIfTI, and fetch bounded slices for humans or LLM tools.
 
 See [DESIGN.md](DESIGN.md) for scope.
 
@@ -31,7 +31,37 @@ for series in report.dicom:
 print(case.fetch(report.dicom[0].id, view="metadata"))
 print(case.fetch(report.dicom[0].id, view="preview", slice_index=0))
 print(case.dicom_groups("CT,SEG"))
+
+# NIfTI volumes (always discovered by .nii / .nii.gz)
+for volume in report.nifti:
+    print(case.fetch(volume.id, view="metadata"))
+    print(case.fetch(volume.id, view="preview", slice_index=0))
 ```
+
+### Optional NIfTI scan/mask patterns
+
+NIfTI discovery does not require a folder layout. When your dataset uses consistent path templates, pass `NiftiCrawlOptions` to enrich matches and create mask→scan links via [med-imagetools `niftiindex`](https://github.com/bhklab/med-imagetools/pull/438):
+
+```python
+from datactrl import Case, NiftiCrawlOptions
+
+case = Case.open(
+    "/path/to/case",
+    nifti=NiftiCrawlOptions(
+        scan_name_pattern="images/{PatientID}_{Modality}.nii.gz",
+        mask_name_pattern="masks/{PatientID}_{Modality}_{ROI}.nii.gz",
+        # Writes index/cache under this directory (default: <root>/.datactrl/nifti)
+        output_dir="/tmp/nifti-index",
+        force=True,
+    ),
+)
+for volume in case.report.nifti:
+    print(volume.path, volume.meta.get("file_type"), case.describe(volume.id)["links"])
+```
+
+Unmatched NIfTI files remain first-class resources without crawl metadata. Crawl artifacts (`index.csv`, `crawl_cache.json`) are written under `output_dir/<dataset_name>/`.
+
+> **Dependency note:** NIfTI crawl support currently pins `med-imagetools` to commit [`ccaa96f`](https://github.com/bhklab/med-imagetools/commit/ccaa96f5622e0da19f41c37b0cfa5651a9bace9f) on branch `JoshuaSiraj/nifti-index` ([PR #438](https://github.com/bhklab/med-imagetools/pull/438)). Switch back to a PyPI release once that lands.
 
 ## Links
 
@@ -39,7 +69,7 @@ Resources can be connected in two ways:
 
 | Source | Origin | Persisted? |
 |--------|--------|------------|
-| `structural` | Adapters (e.g. DICOM SEG→CT references from imagetools) | Yes — derived from files |
+| `structural` | Adapters (e.g. DICOM SEG→CT references, NIfTI mask→scan from optional patterns) | Yes — derived from files |
 | `asserted` | User or agent via `assert_link` | No — session-only overlay on the open `Case` |
 
 Structural links appear automatically after discovery (see `case.describe(series_id)["links"]` for DICOM). Asserted links let you record cross-resource relationships the harness did not infer — for example, that a note mentions a lab table, or that two findings support the same hypothesis.
@@ -56,7 +86,7 @@ link = case.assert_link(note.id, table.id, relation="mentions")
 # Asserted links are merged into describe() for either endpoint
 case.describe(note.id)["links"]   # includes the link above
 case.links(note.id)               # structural + asserted for one resource
-case.links()                      # case-wide links (DICOM structural + all asserted)
+case.links()                      # case-wide links (DICOM/NIfTI structural + all asserted)
 ```
 
 Notes:

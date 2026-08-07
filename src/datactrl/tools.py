@@ -80,7 +80,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "columns": {"type": "array", "items": {"type": "string"}},
             "slice_index": {
                 "type": "integer",
-                "description": "DICOM preview slice index (default: middle)",
+                "description": "DICOM/NIfTI preview slice index (default: middle)",
             },
         },
         ["resource_id"],

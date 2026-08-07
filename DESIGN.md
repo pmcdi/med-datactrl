@@ -2,7 +2,7 @@
 
 ## North star
 
-Build a **local medical data access harness**: open a filesystem root, auto-discover DICOM / structured data / clinical notes, and expose a small Discover → Describe → Fetch API that humans and LLMs can use.
+Build a **local medical data access harness**: open a filesystem root, auto-discover DICOM / structured data / clinical notes / NIfTI, and expose a small Discover → Describe → Fetch API that humans and LLMs can use.
 
 Success means an agent can **inventory a case and pull only what it needs**, not that we build an EHR, PACS, or clinical decision system.
 
@@ -11,8 +11,9 @@ Success means an agent can **inventory a case and pull only what it needs**, not
 **In scope**
 
 - Local directory as the unit of work (any layout; auto-discover)
-- Three modalities: DICOM (via med-imagetools), structured tables/records, clinical notes
+- Four modalities: DICOM (via med-imagetools), structured tables/records, clinical notes, NIfTI
 - DICOM cross-series references (SEG/RTSTRUCT/etc. ↔ parent CT/MR/PT) via imagetools Interlacer
+- NIfTI volumes by extension; optional path templates for scan/mask linking via imagetools nifti crawl
 - Progressive disclosure: list → describe/schema → bounded fetch
 - Stable resource IDs, clear errors, size/row/char limits by default
 - Python API first; tool schemas that mirror that API
@@ -23,8 +24,8 @@ Success means an agent can **inventory a case and pull only what it needs**, not
 - FHIR clients, remote PACS, hospital auth/SSO
 - Diagnosis, summarization products, or clinical safety claims
 - Embedding pipelines, training, or foundation-model hosting
-- Pathology/WSI, genomics, or other modalities before the first three are solid
-- Layout conventions or required manifests
+- Pathology/WSI, genomics, or other modalities before the core set is solid
+- Required manifests or mandatory folder layouts (optional NIfTI patterns are opt-in only)
 - Dumping whole series, tables, or charts into context to be helpful
 
 ## Reliable

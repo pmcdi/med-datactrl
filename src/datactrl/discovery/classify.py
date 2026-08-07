@@ -14,7 +14,11 @@ JSON_EXTENSIONS = {".json", ".jsonl"}
 
 def classify_file(path: Path) -> Modality | None:
     """Return a modality for ``path``, or None if unknown."""
+    name = path.name.lower()
     suffix = path.suffix.lower()
+
+    if name.endswith(".nii.gz") or suffix == ".nii":
+        return Modality.NIFTI
 
     if suffix in STRUCTURED_EXTENSIONS:
         return Modality.STRUCTURED
@@ -39,6 +43,7 @@ def classify_files(paths: list[Path]) -> dict[Modality | None, list[Path]]:
         Modality.DICOM: [],
         Modality.STRUCTURED: [],
         Modality.NOTE: [],
+        Modality.NIFTI: [],
         None: [],
     }
     for path in paths:
