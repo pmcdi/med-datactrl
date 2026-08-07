@@ -1,0 +1,30 @@
+# See pixi feature.style tasks: ruff-check, ruff-format, type-check
+
+target-version = "py311"
+line-length = 88
+src = ["src"]
+
+[lint]
+select = [
+    "E",
+    "F",
+    "W",
+    "I",
+    "UP",
+    "B",
+    "D",
+]
+ignore = [
+    "D100", # module docstring (most modules already have one)
+    "D104", # package __init__ docstring
+    "D105", # magic methods
+]
+
+[lint.pydocstyle]
+convention = "google"
+
+[lint.per-file-ignores]
+"tests/**" = ["D"]
+
+[format]
+quote-style = "double"
