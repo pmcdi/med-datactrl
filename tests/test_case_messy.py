@@ -87,3 +87,23 @@ def test_tool_dispatch_discover_and_fetch():
     )
     assert fetched["view"] == "rows"
     assert len(fetched["data"]["rows"]) == 1
+
+
+def test_inventory_is_compact():
+    case = Case.open(FIXTURE)
+    inventory = case.report.to_inventory()
+    assert "resources" not in inventory
+    assert inventory["counts"]["structured"] >= 2
+    assert inventory["counts"]["notes"] >= 2
+    assert all("id" in item and "label" in item for item in inventory["notes"])
+
+
+def test_gemini_function_declarations_shape():
+    from datactrl.tools import gemini_function_declarations
+
+    decls = gemini_function_declarations()
+    names = {item["name"] for item in decls}
+    assert {"discover", "describe", "fetch", "dicom_select"} <= names
+    for item in decls:
+        assert "parameters" in item
+        assert "type" not in item or item.get("type") != "function"

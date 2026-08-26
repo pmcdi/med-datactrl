@@ -12,6 +12,13 @@ from imgtools.dicom.interlacer import Interlacer
 from imgtools.utils.interlacer_utils import SeriesNode
 
 from datactrl.adapters.base import resolve_fetch_options
+from datactrl.dicom_index import (
+    public_dicom_meta,
+    rank_series,
+    slice_index_for_z,
+    summarize_series,
+)
+from datactrl.rtstruct import overlay_contours
 from datactrl.errors import InvalidFetchOptions, ResourceNotFound
 from datactrl.types import (
     DescribeResult,
@@ -33,7 +40,12 @@ _VIEWS = (
     ),
     ViewSpec(
         name="preview",
-        description="Single-slice PNG preview; set slice_index (default: middle)",
+        description=(
+            "Single-slice PNG preview; set slice_index "
+            "(default: mm-from-superior on long-FOV series, otherwise middle). "
+            "RTSTRUCT previews the referenced CT with contours overlaid; "
+            "pass overlay=true on a CT/MR series to draw linked RTSTRUCT ROIs."
+        ),
         defaults={},
         max={},
     ),
@@ -82,30 +94,32 @@ class DicomAdapter:
             key=lambda item: item[0],
         ):
             resource_id = make_resource_id(Modality.DICOM, series_uid)
-            meta = _safe_series_info(crawler, series_uid)
+            crawler_meta = _safe_series_info(crawler, series_uid)
 
-            parent_uid = _clean_uid(node.ReferencedSeriesUID)
             child_modalities = sorted({child.Modality for child in node.children})
             child_ids = [
                 make_resource_id(Modality.DICOM, child.SeriesInstanceUID)
                 for child in node.children
             ]
-            label = str(
-                meta.get("SeriesDescription") or node.Modality or series_uid[:16]
-            )
             patient_id = str(node.PatientID) if node.PatientID is not None else None
 
-            raw_folder = str(node.folder or meta.get("folder", ""))
+            raw_folder = str(node.folder or crawler_meta.get("folder", ""))
             series_path = _try_resolve_series_path(self._root, raw_folder)
             rel_path = (
                 _rel(series_path, self._root) if series_path is not None else raw_folder
             )
+            overlay = summarize_series(series_path, series_uid)
+            parent_uid = _clean_uid(node.ReferencedSeriesUID) or overlay.get(
+                "referenced_series_uid"
+            )
+
+            label = _series_label(node.Modality, overlay, crawler_meta, series_uid)
 
             ref = ResourceRef(
                 id=resource_id,
                 modality=Modality.DICOM,
                 path=rel_path,
-                label=label,
+                label=str(label),
                 patient_id=patient_id,
                 meta={
                     "Modality": node.Modality,
@@ -115,17 +129,22 @@ class DicomAdapter:
                     "ReferencedSeriesUID": parent_uid,
                     "child_series_ids": child_ids,
                     "child_modalities": child_modalities,
+                    **overlay,
                 },
             )
             self._refs[resource_id] = ref
             refs.append(ref)
+        for ref in refs:
+            self._annotate_rtstruct_slice(ref)
         return refs
 
     def describe(self, resource_id: str) -> DescribeResult:
         """Return metadata summary and structural links for one series."""
         ref = self._require_ref(resource_id)
         series_uid = _series_uid(resource_id)
-        meta = _safe_series_info(self._require_crawler(), series_uid)
+        summary = public_dicom_meta(
+            ref.meta, _safe_series_info(self._require_crawler(), series_uid)
+        )
         links = self._structural_links(resource_id)
         return DescribeResult(
             id=resource_id,
@@ -135,16 +154,7 @@ class DicomAdapter:
             patient_id=ref.patient_id,
             views=[spec.name for spec in _VIEWS],
             view_specs=list(_VIEWS),
-            summary={
-                "Modality": meta.get("Modality") or ref.meta.get("Modality"),
-                "PatientID": meta.get("PatientID") or ref.meta.get("PatientID"),
-                "StudyInstanceUID": meta.get("StudyInstanceUID")
-                or ref.meta.get("StudyInstanceUID"),
-                "SeriesInstanceUID": series_uid,
-                "SeriesDescription": meta.get("SeriesDescription"),
-                "instances": meta.get("instances") or meta.get("num_instances"),
-                "metadata_keys": sorted(str(key) for key in meta.keys()),
-            },
+            summary=summary,
             links=links,
         )
 
@@ -161,16 +171,16 @@ class DicomAdapter:
 
     def _fetch_metadata(self, resource_id: str) -> FetchResult:
         """Build the metadata fetch payload for one series."""
-        self._require_ref(resource_id)
+        ref = self._require_ref(resource_id)
         series_uid = _series_uid(resource_id)
-        meta = self._require_crawler().get_series_info(series_uid)
+        crawler_meta = self._require_crawler().get_series_info(series_uid)
         links = self._structural_links(resource_id)
         return FetchResult(
             id=resource_id,
             modality=Modality.DICOM,
             view="metadata",
             data={
-                "metadata": dict(meta),
+                "metadata": public_dicom_meta(ref.meta, dict(crawler_meta)),
                 "links": [link.to_dict() for link in links],
             },
             bounds={"truncated": False},
@@ -184,41 +194,60 @@ class DicomAdapter:
 
     def _fetch_preview(self, resource_id: str, opts: dict[str, Any]) -> FetchResult:
         """Render one slice of a series as a base64 PNG preview."""
-        import numpy as np
-        from imgtools.io.readers import read_dicom_series
-        from imgtools.vizualize import ImageVisualizer
-
+        from datactrl.dicom_index import ordered_series_files
         from datactrl.utils.image import to_llm_image_payload, to_uint8_rgb
 
-        self._require_ref(resource_id)
+        ref = self._require_ref(resource_id)
+        kind = str(ref.meta.get("series_kind") or "")
+        if kind in {"rtplan", "rtdose"}:
+            raise InvalidFetchOptions(
+                f"{kind.upper()} has no pixel preview; fetch view=metadata"
+            )
+        if kind == "rtstruct":
+            return self._fetch_rtstruct_preview(resource_id, opts)
+
         series_uid = _series_uid(resource_id)
         series_path = _series_path(self._require_crawler(), series_uid)
-        image, _ = read_dicom_series(path=str(series_path), series_id=series_uid)
-        volume = np.asarray(ImageVisualizer.from_image(image).array)
-        if volume.ndim != 3 or volume.size == 0:
+        files = ordered_series_files(series_path, series_uid)
+        if not files:
             raise ValueError(f"Could not render DICOM series: {resource_id!r}")
 
-        n_slices = int(volume.shape[0])
-        if "slice_index" in opts and opts["slice_index"] is not None:
-            slice_index = int(opts["slice_index"])
-        else:
-            slice_index = n_slices // 2
-
+        n_slices = len(files)
+        slice_index = _resolve_slice_index(ref, n_slices, opts)
         if slice_index < 0 or slice_index >= n_slices:
             raise InvalidFetchOptions(
                 f"slice_index={slice_index} out of range; n_slices={n_slices} "
                 f"(valid: 0..{n_slices - 1})"
             )
 
+        frame = _read_preview_frame(files, slice_index)
+        if frame is None:
+            raise ValueError(f"Could not render DICOM series: {resource_id!r}")
+        if frame.ndim == 3:
+            n_slices = int(frame.shape[0])
+            slice_index = max(0, min(n_slices - 1, slice_index))
+            frame = frame[slice_index]
+        if frame.ndim != 2 or frame.size == 0:
+            raise ValueError(f"Could not render DICOM series: {resource_id!r}")
+
+        window = str(opts.get("window") or "")
+        if not window:
+            window = "abdomen" if str(ref.meta.get("Modality") or "").upper() == "CT" else "minmax"
+
+        image = to_uint8_rgb(frame, window=window)
+        overlay_meta: dict[str, Any] = {"overlay": False}
+        if _truthy(opts.get("overlay")):
+            image, overlay_meta = self._overlay_on_image_series(ref, files, slice_index, image)
+
         payload = to_llm_image_payload(
             id=resource_id,
             kind="dicom",
-            image=to_uint8_rgb(volume[slice_index]),
+            image=image,
             meta={
-                "overlay": False,
+                **overlay_meta,
                 "slice_index": slice_index,
                 "n_slices": n_slices,
-                "window": "minmax",
+                "window": window,
             },
         )
         return FetchResult(
@@ -229,14 +258,213 @@ class DicomAdapter:
             bounds={
                 "slice_index": slice_index,
                 "n_slices": n_slices,
+                "window": window,
                 "truncated": False,
             },
             provenance={
                 "SeriesInstanceUID": series_uid,
-                "path": self._require_ref(resource_id).path,
+                "path": ref.path,
                 "adapter": "dicom",
                 "adapter_version": self.version,
             },
+        )
+
+    def _fetch_rtstruct_preview(
+        self, resource_id: str, opts: dict[str, Any]
+    ) -> FetchResult:
+        """Preview the referenced CT/MR with this RTSTRUCT's contours overlaid."""
+        from datactrl.dicom_index import ordered_series_files
+        from datactrl.utils.image import to_llm_image_payload, to_uint8_rgb
+
+        ref = self._require_ref(resource_id)
+        ct_ref = self._referenced_image_series(ref)
+        if ct_ref is None:
+            raise InvalidFetchOptions(
+                "RTSTRUCT has no referenced CT/MR series in this case; "
+                "fetch view=metadata for ROI names"
+            )
+
+        ct_uid = _series_uid(ct_ref.id)
+        ct_path = _series_path(self._require_crawler(), ct_uid)
+        files = ordered_series_files(ct_path, ct_uid)
+        if not files:
+            raise InvalidFetchOptions(
+                f"Referenced image series {ct_ref.id!r} has no readable instances"
+            )
+
+        n_slices = len(files)
+        if "slice_index" in opts and opts["slice_index"] is not None:
+            slice_index = int(opts["slice_index"])
+        else:
+            preferred_z = ref.meta.get("preferred_roi_z_mm")
+            mapped = (
+                slice_index_for_z(ct_ref.meta, float(preferred_z))
+                if preferred_z is not None
+                else None
+            )
+            if mapped is not None:
+                slice_index = mapped
+            else:
+                slice_index = _resolve_slice_index(ct_ref, n_slices, {})
+
+        if slice_index < 0 or slice_index >= n_slices:
+            raise InvalidFetchOptions(
+                f"slice_index={slice_index} out of range; n_slices={n_slices} "
+                f"(valid: 0..{n_slices - 1})"
+            )
+
+        frame = _read_preview_frame(files, slice_index)
+        if frame is None:
+            raise ValueError(f"Could not render referenced series: {ct_ref.id!r}")
+        if frame.ndim == 3:
+            n_slices = int(frame.shape[0])
+            slice_index = max(0, min(n_slices - 1, slice_index))
+            frame = frame[slice_index]
+        if frame.ndim != 2 or frame.size == 0:
+            raise ValueError(f"Could not render referenced series: {ct_ref.id!r}")
+
+        window = str(opts.get("window") or "")
+        if not window:
+            window = (
+                "abdomen"
+                if str(ct_ref.meta.get("Modality") or "").upper() == "CT"
+                else "minmax"
+            )
+
+        image = to_uint8_rgb(frame, window=window)
+        rt_files = self._files_for_ref(ref)
+        overlay_meta: dict[str, Any] = {"overlay": False}
+        if rt_files:
+            image, overlay_meta = overlay_contours(image, files[slice_index], rt_files[0])
+        overlay_meta["referenced_series_id"] = ct_ref.id
+        overlay_meta["preferred_roi"] = ref.meta.get("preferred_roi")
+
+        payload = to_llm_image_payload(
+            id=resource_id,
+            kind="dicom",
+            image=image,
+            meta={
+                **overlay_meta,
+                "slice_index": slice_index,
+                "n_slices": n_slices,
+                "window": window,
+                "roi_names": list(ref.meta.get("roi_names") or []),
+            },
+        )
+        return FetchResult(
+            id=resource_id,
+            modality=Modality.DICOM,
+            view="preview",
+            data=payload,
+            bounds={
+                "slice_index": slice_index,
+                "n_slices": n_slices,
+                "window": window,
+                "truncated": False,
+            },
+            provenance={
+                "SeriesInstanceUID": _series_uid(resource_id),
+                "ReferencedSeriesUID": ct_uid,
+                "path": ref.path,
+                "adapter": "dicom",
+                "adapter_version": self.version,
+            },
+        )
+
+    def _annotate_rtstruct_slice(self, ref: ResourceRef) -> None:
+        """Map the preferred ROI z onto the referenced CT/MR instance index."""
+        if str(ref.meta.get("series_kind") or "") != "rtstruct":
+            return
+        z_mm = ref.meta.get("preferred_roi_z_mm")
+        ct_ref = self._referenced_image_series(ref)
+        if z_mm is None or ct_ref is None:
+            return
+        idx = slice_index_for_z(ct_ref.meta, float(z_mm))
+        if idx is not None:
+            ref.meta["suggested_slice_index"] = idx
+
+    def _overlay_on_image_series(
+        self,
+        image_ref: ResourceRef,
+        files: list[str],
+        slice_index: int,
+        image,
+    ):
+        """Draw a linked RTSTRUCT onto an already-rendered CT/MR slice."""
+        rt_ref = self._rtstruct_for_image(image_ref)
+        if rt_ref is None:
+            return image, {"overlay": False}
+        rt_files = self._files_for_ref(rt_ref)
+        if not rt_files:
+            return image, {"overlay": False}
+        drawn, meta = overlay_contours(image, files[slice_index], rt_files[0])
+        meta["overlay_resource_id"] = rt_ref.id
+        return drawn, meta
+
+    def _referenced_image_series(self, rt_ref: ResourceRef) -> ResourceRef | None:
+        """Resolve the CT/MR series an RTSTRUCT points at."""
+        parent = rt_ref.meta.get("ReferencedSeriesUID") or rt_ref.meta.get(
+            "referenced_series_uid"
+        )
+        if parent:
+            resource_id = make_resource_id(Modality.DICOM, str(parent))
+            found = self._refs.get(resource_id)
+            if found is not None:
+                return found
+        frame = rt_ref.meta.get("FrameOfReferenceUID")
+        if not frame:
+            return None
+        for other in self._refs.values():
+            if other.id == rt_ref.id:
+                continue
+            if other.meta.get("FrameOfReferenceUID") != frame:
+                continue
+            if str(other.meta.get("Modality") or "").upper() in {"CT", "MR", "PT"}:
+                return other
+        return None
+
+    def _rtstruct_for_image(self, image_ref: ResourceRef) -> ResourceRef | None:
+        """Find an RTSTRUCT that references this image series."""
+        for child_id in image_ref.meta.get("child_series_ids") or []:
+            child = self._refs.get(child_id)
+            if child is not None and str(child.meta.get("series_kind") or "") == "rtstruct":
+                return child
+        image_uid = _series_uid(image_ref.id)
+        for other in self._refs.values():
+            if str(other.meta.get("series_kind") or "") != "rtstruct":
+                continue
+            parent = other.meta.get("ReferencedSeriesUID") or other.meta.get(
+                "referenced_series_uid"
+            )
+            if parent and str(parent) == image_uid:
+                return other
+        return None
+
+    def _files_for_ref(self, ref: ResourceRef) -> list[str]:
+        from datactrl.dicom_index import ordered_series_files
+
+        series_uid = _series_uid(ref.id)
+        try:
+            series_path = _series_path(self._require_crawler(), series_uid)
+        except ValueError:
+            return []
+        return ordered_series_files(series_path, series_uid)
+
+    def select(
+        self,
+        query: str,
+        *,
+        limit: int = 5,
+        include_localizers: bool = False,
+    ) -> dict[str, Any]:
+        """Rank indexed series for a clinical query (no pixels)."""
+        if not self._refs:
+            raise ResourceNotFound("No DICOM data indexed for this case")
+        return rank_series(
+            list(self._refs.values()),
+            query,
+            limit=limit,
+            include_localizers=include_localizers,
         )
 
     def tree(self) -> dict[str, Any]:
@@ -352,6 +580,48 @@ class DicomAdapter:
         return self._interlacer
 
 
+def _series_label(
+    modality: str | None,
+    overlay: dict[str, Any],
+    crawler_meta: dict[str, Any],
+    series_uid: str,
+) -> str:
+    """Human label: series description, or ROI names for unlabeled RTSTRUCT."""
+    kind = str(overlay.get("series_kind") or "")
+    if kind == "rtstruct":
+        struct_label = str(overlay.get("structure_set_label") or "").strip()
+        names = [str(name) for name in (overlay.get("roi_names") or []) if name]
+        if struct_label and struct_label.lower() not in {"unapproved", "unknown"}:
+            return f"RTSTRUCT ({struct_label})"
+        if names:
+            shown = ", ".join(names[:4])
+            if len(names) > 4:
+                shown += ", …"
+            return f"RTSTRUCT ({shown})"
+        return "RTSTRUCT"
+    return str(
+        overlay.get("SeriesDescription")
+        or _clean_uid(crawler_meta.get("SeriesDescription"))
+        or modality
+        or series_uid[:16]
+    )
+
+
+def _resolve_slice_index(ref: ResourceRef, n_slices: int, opts: dict[str, Any]) -> int:
+    if "slice_index" in opts and opts["slice_index"] is not None:
+        return int(opts["slice_index"])
+    suggested = ref.meta.get("suggested_slice_index")
+    if suggested is not None:
+        return max(0, min(n_slices - 1, int(suggested)))
+    return n_slices // 2
+
+
+def _truthy(value: Any) -> bool:
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
 def _series_uid(resource_id: str) -> str:
     """Extract the DICOM series UID from a resource id."""
     modality, key = parse_resource_id(resource_id)
@@ -420,6 +690,18 @@ def _chain_to_group(chain: list[SeriesNode]) -> dict[str, Any]:
             for node in chain
         ],
     }
+
+
+def _read_preview_frame(files: list[str], slice_index: int):
+    """Read one instance (or a multi-frame volume) without loading the series."""
+    import numpy as np
+    import SimpleITK as sitk
+
+    path = files[0] if len(files) == 1 else files[slice_index]
+    image = sitk.ReadImage(path)
+    frame = np.asarray(sitk.GetArrayFromImage(image))
+    frame = np.squeeze(frame)
+    return frame
 
 
 def _try_resolve_series_path(dicom_dir: Path, folder: str) -> Path | None:

@@ -1,0 +1,9 @@
+{
+  "clinical_notes": {"summary": "34yo female presenting with 5-day history of fever (peak 39.2°C), productive cough with purulent sputum, and right-sided pleuritic chest pain. Progressive dyspnea now with minimal exertion. PMH: mild intermittent asthma. SpO2 94% on room air. Crackles and bronchial breath sounds over right lower lobe with dullness to percussion."},
+  "chest_xray": {"summary": "Right lower lobe consolidation with air bronchograms consistent with community-acquired pneumonia. No pleural effusion. Heart size normal. Left lung clear. No pneumothorax."},
+  "ecg": {"summary": "Sinus tachycardia at 112 bpm. Normal axis. PR interval 140ms. QRS 82ms. No ST-segment changes. No T-wave inversions. QTc 390ms. Tachycardia likely secondary to fever and infection."},
+  "echo": {"summary": "Normal left ventricular size and function, LVEF 62%. No wall motion abnormalities. Trivial tricuspid regurgitation. Estimated RVSP 28 mmHg (normal). No pericardial effusion. Normal diastolic function."},
+  "heart_sounds": {"summary": "S1 and S2 normal. Tachycardic rate at 112 bpm. No murmurs, gallops, or rubs detected. No S3 or S4. Heart sounds regular in rhythm despite elevated rate."},
+  "lab_results": {"summary": "WBC: 15.2 x10³/µL (elevated, neutrophil predominance 82%). CRP: 148 mg/L (markedly elevated). Procalcitonin: 1.8 ng/mL (elevated, suggesting bacterial infection). BMP within normal limits. Creatinine 0.8 mg/dL. Lactate 1.4 mmol/L (normal). Blood cultures pending."},
+  "medication": {"summary": "Active medications: Albuterol inhaler PRN (asthma). Initiated: Ceftriaxone 1g IV daily + Azithromycin 500mg IV daily (CAP empiric coverage). Acetaminophen 1g q6h PRN (fever). IV normal saline for hydration. No drug allergies. No significant drug interactions."}
+}

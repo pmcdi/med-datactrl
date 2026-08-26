@@ -13,6 +13,7 @@ Success means an agent can **inventory a case and pull only what it needs**, not
 - Local directory as the unit of work (any layout; auto-discover)
 - Three modalities: DICOM (via med-imagetools), structured tables/records, clinical notes
 - DICOM cross-series references (SEG/RTSTRUCT/etc. ↔ parent CT/MR/PT) via imagetools Interlacer
+- RTSTRUCT ROI inventory and single-slice contour overlay on the referenced CT/MR
 - Progressive disclosure: list → describe/schema → bounded fetch
 - Stable resource IDs, clear errors, size/row/char limits by default
 - Python API first; tool schemas that mirror that API

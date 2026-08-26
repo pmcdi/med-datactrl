@@ -1,0 +1,17 @@
+{
+  "name": "David Okafor",
+  "age": 52,
+  "sex": "M",
+  "blood_type": "O+",
+  "allergies": [],
+  "conditions": ["Type 2 Diabetes", "Hypertension", "Obesity", "Peripheral neuropathy"],
+  "data_dates": {
+    "chest-xray": "2026-02-05",
+    "ecg": "2026-02-20",
+    "clinical-notes": "2026-02-20",
+    "echo": "2026-02-05",
+    "heart-sounds": "2026-02-20",
+    "lab-results": "2026-02-12",
+    "medications": "2026-02-20"
+  }
+}

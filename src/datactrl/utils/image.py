@@ -40,16 +40,37 @@ def to_llm_image_payload(
     }
 
 
-def to_uint8_rgb(slice_data: np.ndarray) -> Image.Image:
-    """Min-max scale a 2D slice to uint8 RGB for preview encoding."""
-    data = slice_data.astype(np.float32)
-    minimum = float(data.min())
-    maximum = float(data.max())
+_CT_WINDOWS = {
+    "abdomen": (40.0, 400.0),
+    "liver": (60.0, 150.0),
+    "lung": (-600.0, 1500.0),
+    "bone": (300.0, 2000.0),
+    "brain": (40.0, 80.0),
+}
 
-    if maximum > minimum:
-        data = (data - minimum) / (maximum - minimum)
-        scaled = (data * 255).astype(np.uint8)
+
+def to_uint8_rgb(slice_data: np.ndarray, window: str = "minmax") -> Image.Image:
+    """Scale a 2D slice to uint8 RGB.
+
+    ``window="minmax"`` stretches the slice. Named CT windows clip to
+    HU level/width (abdomen, liver, lung, bone, brain).
+    """
+    data = np.asarray(slice_data, dtype=np.float32)
+    spec = _CT_WINDOWS.get(window or "minmax")
+    if spec is None:
+        minimum = float(data.min()) if data.size else 0.0
+        maximum = float(data.max()) if data.size else 0.0
+        if maximum > minimum:
+            scaled = ((data - minimum) / (maximum - minimum) * 255).astype(np.uint8)
+        else:
+            scaled = np.zeros(data.shape, dtype=np.uint8)
     else:
-        scaled = np.zeros(data.shape, dtype=np.uint8)
+        level, width = spec
+        lo = level - width / 2.0
+        hi = level + width / 2.0
+        clipped = np.clip(data, lo, hi)
+        scaled = ((clipped - lo) / (hi - lo) * 255).astype(np.uint8)
 
+    if scaled.ndim != 2:
+        scaled = np.squeeze(scaled)
     return Image.fromarray(scaled, mode="L").convert("RGB")

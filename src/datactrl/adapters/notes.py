@@ -83,9 +83,12 @@ class NotesAdapter:
     def describe(self, resource_id: str) -> DescribeResult:
         """Return format, char count, and a short preview for one note."""
         record = self._require(resource_id)
-        text = _read_text(record.path, record.format)
-        preview = text[:DEFAULT_NOTE_PREVIEW_CHARS]
-        if len(text) > DEFAULT_NOTE_PREVIEW_CHARS:
+        peek = _read_text(
+            record.path, record.format, max_chars=DEFAULT_NOTE_PREVIEW_CHARS + 1
+        )
+        truncated_preview = len(peek) > DEFAULT_NOTE_PREVIEW_CHARS
+        preview = peek[:DEFAULT_NOTE_PREVIEW_CHARS]
+        if truncated_preview:
             preview += "..."
         return DescribeResult(
             id=resource_id,
@@ -96,7 +99,7 @@ class NotesAdapter:
             view_specs=list(_VIEWS),
             summary={
                 "format": record.format,
-                "char_count": len(text),
+                "char_count": _char_count(record.path, record.format),
             },
             preview=preview,
         )
@@ -110,16 +113,17 @@ class NotesAdapter:
         )
         record = self._require(resource_id)
         max_chars = int(merged.get("max_chars", DEFAULT_NOTE_CHARS))
-        text = _read_text(record.path, record.format)
-        truncated = len(text) > max_chars
+        raw = _read_text(record.path, record.format, max_chars=max_chars + 1)
+        truncated = len(raw) > max_chars
+        text = raw[:max_chars]
         return FetchResult(
             id=resource_id,
             modality=Modality.NOTE,
             view=resolved_view,
             data={
                 "format": record.format,
-                "text": text[:max_chars],
-                "char_count": len(text),
+                "text": text,
+                "char_count": len(text) if not truncated else max_chars,
             },
             bounds={
                 "max_chars": max_chars,
@@ -140,13 +144,39 @@ class NotesAdapter:
             raise ResourceNotFound(f"Unknown note: {resource_id!r}") from exc
 
 
-def _read_text(path: Path, fmt: str) -> str:
-    """Read full note text from plain text or PDF."""
+def _read_text(path: Path, fmt: str, max_chars: int | None = None) -> str:
+    """Read note text from plain text or PDF, optionally stopping early."""
     if fmt == "pdf":
         reader = PdfReader(str(path))
-        pages = [page.extract_text() or "" for page in reader.pages]
-        return "\n\n".join(pages).strip()
-    return path.read_text(encoding="utf-8", errors="replace")
+        chunks: list[str] = []
+        total = 0
+        for page in reader.pages:
+            chunk = page.extract_text() or ""
+            chunks.append(chunk)
+            total += len(chunk) + 2
+            if max_chars is not None and total >= max_chars:
+                break
+        text = "\n\n".join(chunks).strip()
+        return text if max_chars is None else text[:max_chars]
+    if max_chars is None:
+        return path.read_text(encoding="utf-8", errors="replace")
+    with path.open(encoding="utf-8", errors="replace") as handle:
+        return handle.read(max_chars)
+
+
+def _char_count(path: Path, fmt: str) -> int:
+    """Return character count without holding the full note in memory."""
+    if fmt == "pdf":
+        reader = PdfReader(str(path))
+        return sum(len(page.extract_text() or "") for page in reader.pages)
+    count = 0
+    with path.open(encoding="utf-8", errors="replace") as handle:
+        while True:
+            chunk = handle.read(65_536)
+            if not chunk:
+                break
+            count += len(chunk)
+    return count
 
 
 def _rel(path: Path, root: Path) -> str:

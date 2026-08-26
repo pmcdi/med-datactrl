@@ -1,0 +1,17 @@
+{
+  "name": "Lisa Fernandez",
+  "age": 41,
+  "sex": "F",
+  "blood_type": "AB-",
+  "allergies": ["Lisinopril"],
+  "conditions": ["Coronary artery disease", "Depression", "Hyperlipidemia"],
+  "data_dates": {
+    "chest-xray": "2026-02-14",
+    "ecg": "2026-02-28",
+    "clinical-notes": "2026-02-28",
+    "echo": "2026-02-14",
+    "heart-sounds": "2026-02-28",
+    "lab-results": "2026-02-21",
+    "medications": "2026-02-28"
+  }
+}
