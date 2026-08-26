@@ -7,7 +7,7 @@ A multi-agent AI system for multimodal medical data analysis using Google's Gemi
 - **Multimodal Analysis** - Seven specialized agents each handle a distinct clinical data type
 - **Knowledge Bus** - Automated cross-referencing of findings across modalities (supports/contradicts with clinical reasoning)
 - **Inline Citations** - Orchestrator responses reference agent findings via `[cite:N]` tokens, rendered as hoverable cards showing the actual data (images, audio, video, tables, text)
-- **Patient Sidebar** - Browse 10 patients (P0001-P0010), create per-patient conversations, and switch between them
+- **Patient Sidebar** - Browse demo patients (P0001-P0010) plus datactrl-backed cases such as TCGA-DD-A4NF and RADCURE-0006
 - **Real-time Streaming** - WebSocket streaming of agent execution logs and tool calls
 - **Patient-Aware Context** - Active patient demographics and available modalities automatically injected into the AI system prompt
 
@@ -18,7 +18,7 @@ The system uses a tool-calling orchestration pattern where Gemini coordinates sp
 ```
 User Query
     |
-Orchestrator (Gemini 3.1 Pro)
+Orchestrator (Gemini 3.6 Flash)
     |
     |--- dynamically selects relevant agents based on query + available data
     |
@@ -44,7 +44,9 @@ Knowledge Bus (cross-references all findings)
 Response Assembly (narrative + citations)
 ```
 
-Each agent returns a structured finding with a clinical summary. The knowledge bus then identifies which findings support or contradict each other across modalities. The orchestrator weaves these into a clinical narrative with inline citations.
+Demo patients (P0001–P0010) still use stub agents. Datactrl-backed cases (TCGA-DD-A4NF, RADCURE-0006) go through a retrieve layer (`discover` / `describe` / `fetch` / `dicom_select`) then notes and imaging analysis agents. RTSTRUCT series expose ROI names in inventory/metadata; `fetch(preview)` overlays those contours on the referenced CT. Add a new case in `src/patients/catalog.py` (`DATACTRL_PATIENTS`); retrieval tools and agents pick it up without orchestrator changes.
+
+Each analysis agent returns a structured finding with a clinical summary. The knowledge bus then identifies which findings support or contradict each other across modalities. The orchestrator weaves these into a clinical narrative with inline citations.
 
 ## Agents
 
@@ -56,6 +58,7 @@ Each agent returns a structured finding with a clinical summary. The knowledge b
 | EchoAgent | echo | `.mp4` |
 | HeartSoundsAgent | heart_sounds | `.wav` |
 | LabResultsAgent | lab_results | `.png` |
+| ImagingAgent | imaging | DICOM preview via datactrl |
 | MedicationAgent | medication | `.csv` |
 
 ## Prerequisites
@@ -182,7 +185,7 @@ MedDataOS/
 
 ## Key Technologies
 
-- **Google Gemini 3.1 Pro** - LLM orchestration via function calling
+- **Google Gemini 3.6 Flash** - LLM orchestration via function calling (free-tier API)
 - **FastAPI** - Async web framework
 - **WebSockets** - Real-time streaming
 - **Vanilla JavaScript** - No frontend framework dependencies

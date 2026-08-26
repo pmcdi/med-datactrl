@@ -2,9 +2,7 @@ import json
 from google.genai import types
 from src.agents.base_agent import Finding
 from src.agents.prompts import KNOWLEDGE_BUS_PROMPT_TEMPLATE
-from src.core.gemini_client import create_client
-
-GEMINI_MODEL = "gemini-3.1-pro-preview"
+from src.core.gemini_client import GEMINI_MODEL, create_client
 
 
 def _build_knowledge_bus_prompt(findings: list[Finding], patient_id: str, patient_info: dict) -> str:

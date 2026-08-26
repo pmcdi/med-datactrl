@@ -15,7 +15,7 @@ sys.path.insert(0, str(project_root))
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, File, UploadFile, Form
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 import uvicorn
 import asyncio
 import threading
@@ -26,6 +26,8 @@ import shutil
 
 from src.utils.logging import WebSocketManager, set_websocket_manager
 from src.core.orchestrator import run_pipeline
+from src.patients.catalog import get_patient, list_datactrl_patients
+from src.retrieval.case_store import get_case, warmup
 
 app = FastAPI(title="MedDataOS Monitor")
 
@@ -997,12 +999,16 @@ async def chat(
     p_id = session.get("patient_id")
     patient_info = None
     if p_id:
-        patient_file = project_root / "multimodal-data" / "patient-info" / f"{p_id}.json"
-        if patient_file.exists():
-            try:
-                patient_info = json.loads(patient_file.read_text())
-            except Exception:
-                pass
+        catalog_record = get_patient(p_id)
+        if catalog_record:
+            patient_info = {k: v for k, v in catalog_record.items() if k != "case_root"}
+        else:
+            patient_file = project_root / "multimodal-data" / "patient-info" / f"{p_id}.json"
+            if patient_file.exists():
+                try:
+                    patient_info = json.loads(patient_file.read_text())
+                except Exception:
+                    pass
 
     # Run pipeline in background with conversation history and file
     def run_in_thread():
@@ -1101,6 +1107,7 @@ async def get_patients():
             })
         except Exception:
             continue
+    patients.extend(list_datactrl_patients())
     return patients
 
 
@@ -1226,11 +1233,49 @@ async def patch_patient_review(patient_id: str, request: dict):
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint."""
-    return {
-        "status": "healthy",
+    return {"status": "healthy",
         "active_connections": len(ws_manager.active_connections),
         "active_sessions": len(sessions)
     }
+
+
+@app.get("/api/cases/{patient_id}/notes")
+async def get_case_notes(patient_id: str):
+    """Bounded concatenation of discovered clinical notes for citation cards."""
+    try:
+        case = get_case(patient_id)
+    except (KeyError, FileNotFoundError) as exc:
+        return JSONResponse(status_code=404, content={"error": str(exc)})
+    chunks = []
+    for note in case.report.notes:
+        fetched = case.fetch(note.id, view="text")
+        text = (fetched.get("data") or {}).get("text") or ""
+        chunks.append(f"# {note.label}\n{text}")
+    return PlainTextResponse("\n\n".join(chunks) if chunks else "No notes in this case.")
+
+
+@app.get("/api/cases/{patient_id}/resource")
+async def get_case_resource(patient_id: str, id: str, view: str = "preview"):
+    """Serve a datactrl fetch view (PNG preview or JSON/text) for citation cards."""
+    import base64
+
+    try:
+        case = get_case(patient_id)
+        result = case.fetch(id, view=view)
+    except (KeyError, FileNotFoundError) as exc:
+        return JSONResponse(status_code=404, content={"error": str(exc)})
+    except Exception as exc:
+        return JSONResponse(status_code=400, content={"error": str(exc)})
+
+    data = result.get("data") or {}
+    if view == "preview" and isinstance(data, dict) and data.get("image_base64"):
+        return Response(
+            content=base64.b64decode(data["image_base64"]),
+            media_type=data.get("mime_type") or "image/png",
+        )
+    if view == "text" and isinstance(data, dict):
+        return PlainTextResponse(data.get("text") or "")
+    return result
 
 
 def check_port_available(host: str, port: int) -> bool:
@@ -1313,6 +1358,9 @@ def start_server(host: str = None, port: int = None):
 
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
+
+    for record in list_datactrl_patients():
+        threading.Thread(target=warmup, args=(record["id"],), daemon=True).start()
 
     try:
         _server.run()

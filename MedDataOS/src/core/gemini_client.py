@@ -7,6 +7,9 @@ load_dotenv()
 from google import genai
 from google.genai import types
 
+# Best free-tier model (gemini-3.1-pro-preview is paid-only).
+GEMINI_MODEL = "gemini-3.6-flash"
+
 def create_client():
     """Create and return a Gemini API client."""
     GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')

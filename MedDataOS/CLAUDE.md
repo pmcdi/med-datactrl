@@ -37,7 +37,7 @@ The system uses Gemini's function calling to coordinate specialized agents. **Cr
    - Receives query + optional file upload + optional patient context
    - When a patient is active, prepends patient demographics (age, sex, blood type, allergies, conditions) to the system instruction
    - Creates `GenerateContentConfig` with tool definitions
-   - Sends to Gemini 2.5 Flash with conversation history
+   - Sends to Gemini 3.6 Flash with conversation history
 
 2. **Tool Calling Loop**
    - Gemini returns `function_call` with tool name + arguments
@@ -280,7 +280,7 @@ if python_code.endswith("```"):
 
 ### API Dependencies
 - Requires Google Gemini API key
-- All agents use `gemini-2.5-pro` model
+- Orchestrator and knowledge bus use `gemini-3.6-flash` (free-tier API)
 - Chest X-ray agent expects external service at `localhost:8000`
 
 ## Troubleshooting

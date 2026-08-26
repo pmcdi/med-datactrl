@@ -742,6 +742,7 @@ const agentBadgeLabels = {
     'echo':           'Echo',
     'lab_results':    'Labs',
     'medication':     'Meds',
+    'imaging':        'Imaging',
 };
 
 // Agent ID → full display name for citation card header
@@ -753,6 +754,7 @@ const agentCardLabels = {
     'echo':           'Findings from Echocardiogram',
     'lab_results':    'Findings from Lab Results',
     'medication':     'Findings from Medications',
+    'imaging':        'Findings from Imaging',
 };
 
 // Agent-specific checklist section headers
@@ -764,6 +766,7 @@ const agentFindingsLabel = {
     'echo':           'Echocardiographic Findings',
     'lab_results':    'Lab Findings',
     'medication':     'Medication Review',
+    'imaging':        'Imaging Findings',
 };
 
 // Provenance pipeline steps per agent (static processing stages)
@@ -804,6 +807,11 @@ const provenanceSteps = {
         { label: 'Data Origin', desc: 'Medication reconciliation, pharmacy system' },
         { label: 'Regimen Parsing', desc: 'Active/discontinued classification, dose timeline construction' },
         { label: 'Interaction Screening', desc: 'Drug-drug interaction check, contraindication review' },
+    ],
+    'imaging': [
+        { label: 'Case inventory', desc: 'datactrl discover over the patient directory' },
+        { label: 'Series fetch', desc: 'Bounded DICOM preview via med-imagetools' },
+        { label: 'Vision read', desc: 'Single-slice interpretation by the vision LLM' },
     ],
 };
 
@@ -870,7 +878,7 @@ const agentInfo = {
         limitations: 'Optimized for apical 4-chamber view only. Accuracy decreases with poor acoustic windows or foreshortened views.',
     },
     'lab_results': {
-        model: 'Rule-based + Gemini 3.1 Pro',
+        model: 'Rule-based + Gemini 3.6 Flash',
         modelUrl: null,
         purpose: 'Flags abnormal values, identifies trends, and interprets clinical significance of lab panels',
         input: 'Structured lab results (HL7v2 \u2192 PNG chart)',
@@ -882,7 +890,7 @@ const agentInfo = {
         limitations: 'Reference ranges may not account for age/sex/ethnicity-specific norms. LLM interpretation requires clinical verification.',
     },
     'medication': {
-        model: 'DrugBank + Gemini 3.1 Pro',
+        model: 'DrugBank + Gemini 3.6 Flash',
         modelUrl: 'https://go.drugbank.com/',
         purpose: 'Reviews medication lists for drug interactions, contraindications, and dosing concerns',
         input: 'Medication history (CSV)',
@@ -892,6 +900,18 @@ const agentInfo = {
         paper: null,
         license: 'CC BY-NC 4.0',
         limitations: 'May not reflect most recent FDA labeling changes. Does not account for patient-specific pharmacogenomics.',
+    },
+    'imaging': {
+        model: 'Gemini vision + datactrl preview',
+        modelUrl: null,
+        purpose: 'Interprets a single bounded DICOM slice fetched through the datactrl harness',
+        input: 'DICOM series preview (PNG)',
+        output: 'Slice-level findings with series resource id and provenance',
+        method: 'Deterministic series fetch (med-imagetools) + vision LLM on one slice',
+        accuracy: 'Preview only — not a full study read',
+        paper: null,
+        license: 'Research prototype',
+        limitations: 'One slice, min-max windowing, no MedSAM. Do not use as a diagnostic report.',
     },
 };
 
@@ -1779,7 +1799,7 @@ function buildProvenanceHTML(citation) {
     // Citation generated node
     html += `<div class="prov-citation">
         <div class="prov-citation-label">Citation Generated<span class="prov-step-time">${todayDate}</span></div>
-        <div class="prov-citation-text">Gemini 3.1 Pro \u2014 orchestrator synthesis and citation formatting</div>
+        <div class="prov-citation-text">Gemini 3.6 Flash \u2014 orchestrator synthesis and citation formatting</div>
     </div>`;
 
     html += '</div>';
