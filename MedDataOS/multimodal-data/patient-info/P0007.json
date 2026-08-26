@@ -1,0 +1,17 @@
+{
+  "name": "Susan Nakamura",
+  "age": 63,
+  "sex": "F",
+  "blood_type": "B-",
+  "allergies": ["Iodine contrast"],
+  "conditions": ["Hypertension", "Hypothyroidism"],
+  "data_dates": {
+    "chest-xray": "2026-01-27",
+    "ecg": "2026-02-10",
+    "clinical-notes": "2026-02-10",
+    "echo": "2026-01-27",
+    "heart-sounds": "2026-02-10",
+    "lab-results": "2026-02-03",
+    "medications": "2026-02-10"
+  }
+}

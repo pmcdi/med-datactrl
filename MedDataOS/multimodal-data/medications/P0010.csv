@@ -1,0 +1,12 @@
+patient_id,medication_name,dose_mg,frequency,route,start_date,end_date,status,indication,prn
+P0010,Aspirin (low-dose),81,once daily,oral,2025-11-15,,active,Post-MI antiplatelet,no
+P0010,Clopidogrel,75,once daily,oral,2025-11-15,,active,Post-PCI dual antiplatelet,no
+P0010,Lisinopril,10,once daily,oral,2025-11-15,2025-11-20,discontinued,Post-MI/Hypertension,no
+P0010,Losartan,50,once daily,oral,2025-11-20,,active,Post-MI/Hypertension,no
+P0010,Metoprolol succinate,25,once daily,oral,2025-11-15,2025-12-15,discontinued,Post-MI beta-blocker,no
+P0010,Metoprolol succinate,50,once daily,oral,2025-12-15,,active,Post-MI beta-blocker,no
+P0010,Rosuvastatin,40,once daily,oral,2025-11-15,,active,Hyperlipidemia/Post-MI,no
+P0010,Sertraline,50,once daily,oral,2023-06-01,2025-12-01,discontinued,Depression,no
+P0010,Sertraline,100,once daily,oral,2025-12-01,,active,Depression,no
+P0010,Nitroglycerin,0.4,sublingual PRN,sublingual,2025-11-15,,active,Angina rescue,yes
+P0010,Pantoprazole,40,once daily,oral,2025-11-15,,active,GI protection with DAPT,no

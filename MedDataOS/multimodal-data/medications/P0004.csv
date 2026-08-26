@@ -1,0 +1,13 @@
+patient_id,medication_name,dose_mg,frequency,route,start_date,end_date,status,indication,prn
+P0004,Lisinopril,10,once daily,oral,2014-05-01,2016-09-10,discontinued,Hypertension,no
+P0004,Furosemide,20,once daily,oral,2018-03-15,2022-08-01,discontinued,Heart failure,no
+P0004,Furosemide,40,twice daily,oral,2022-08-01,,active,Heart failure,no
+P0004,Carvedilol,6.25,twice daily,oral,2018-03-15,2020-01-10,discontinued,Heart failure,no
+P0004,Carvedilol,12.5,twice daily,oral,2020-01-10,,active,Heart failure,no
+P0004,Losartan,50,once daily,oral,2016-09-15,,active,Hypertension/Heart failure,no
+P0004,Spironolactone,25,once daily,oral,2019-06-01,,active,Heart failure,no
+P0004,Apixaban,5,twice daily,oral,2020-04-01,,active,Atrial fibrillation,no
+P0004,Digoxin,0.125,once daily,oral,2021-11-01,,active,Atrial fibrillation rate control,no
+P0004,Atorvastatin,20,once daily,oral,2018-03-15,,active,Cardiovascular prevention,no
+P0004,Potassium chloride,20,once daily,oral,2022-08-01,,active,Hypokalemia prevention,no
+P0004,Metolazone,2.5,as needed,oral,2024-06-01,,active,Diuretic resistance,yes

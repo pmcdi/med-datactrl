@@ -1,0 +1,13 @@
+patient_id,medication_name,dose_mg,frequency,route,start_date,end_date,status,indication,prn
+P0008,Metformin,500,twice daily,oral,2014-03-01,2016-09-01,discontinued,Type 2 Diabetes,no
+P0008,Metformin,1000,twice daily,oral,2016-09-01,,active,Type 2 Diabetes,no
+P0008,Glipizide,5,once daily,oral,2017-06-15,2020-01-10,discontinued,Type 2 Diabetes,no
+P0008,Glipizide,10,twice daily,oral,2020-01-10,,active,Type 2 Diabetes,no
+P0008,Lisinopril,10,once daily,oral,2015-11-01,2019-05-01,discontinued,Hypertension,no
+P0008,Lisinopril,20,once daily,oral,2019-05-01,,active,Hypertension,no
+P0008,Amlodipine,5,once daily,oral,2019-05-01,2022-03-01,discontinued,Hypertension,no
+P0008,Amlodipine,10,once daily,oral,2022-03-01,,active,Hypertension,no
+P0008,Atorvastatin,20,once daily,oral,2015-11-01,2021-07-01,discontinued,Hyperlipidemia,no
+P0008,Atorvastatin,40,once daily,oral,2021-07-01,,active,Hyperlipidemia,no
+P0008,Gabapentin,300,three times daily,oral,2023-08-01,,active,Peripheral neuropathy,no
+P0008,Empagliflozin,10,once daily,oral,2025-09-01,,active,Type 2 Diabetes/Cardiorenal protection,no

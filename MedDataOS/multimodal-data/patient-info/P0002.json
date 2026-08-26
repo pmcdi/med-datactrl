@@ -1,0 +1,17 @@
+{
+  "name": "Maria Lopez",
+  "age": 34,
+  "sex": "F",
+  "blood_type": "O+",
+  "allergies": [],
+  "conditions": ["Asthma"],
+  "data_dates": {
+    "chest-xray": "2026-02-18",
+    "ecg": "2026-02-18",
+    "clinical-notes": "2026-02-18",
+    "echo": "2026-02-19",
+    "heart-sounds": "2026-02-18",
+    "lab-results": "2026-02-18",
+    "medications": "2026-02-18"
+  }
+}

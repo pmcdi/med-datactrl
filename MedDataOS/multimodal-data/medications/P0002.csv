@@ -1,0 +1,13 @@
+patient_id,medication_name,dose_mg,frequency,route,start_date,end_date,status,indication,prn
+P0002,Albuterol inhaler,,2 puffs every 4-6h as needed,inhalation,2019-05-10,,active,Asthma,yes
+P0002,Montelukast,10,once daily,oral,2021-03-15,2023-01-10,discontinued,Asthma,no
+P0002,Fluticasone nasal spray,,2 sprays each nostril daily,intranasal,2021-06-01,2022-09-01,discontinued,Allergic rhinitis,no
+P0002,Combined oral contraceptive,,once daily,oral,2022-01-01,,active,Contraception,no
+P0002,Amoxicillin,875,twice daily,oral,2024-01-15,2024-01-25,completed,Acute sinusitis,no
+P0002,Prednisone,40,once daily tapering,oral,2024-09-12,2024-09-19,completed,Asthma exacerbation,no
+P0002,Cetirizine,10,once daily,oral,2025-03-01,2025-06-01,completed,Seasonal allergies,no
+P0002,Ibuprofen,400,every 6h as needed,oral,2025-08-01,2025-08-05,completed,Headache,yes
+P0002,Vitamin D3,2000,once daily,oral,2025-09-01,,active,Vitamin D deficiency,no
+P0002,Amoxicillin,875,twice daily,oral,2026-02-08,,active,Community-acquired pneumonia,no
+P0002,Azithromycin,500,500 mg day 1 then 250 mg daily,oral,2026-02-08,,active,Community-acquired pneumonia,no
+P0002,Acetaminophen,650,every 6h as needed,oral,2026-02-08,,active,Fever/pain,yes

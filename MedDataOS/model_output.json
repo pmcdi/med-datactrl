@@ -1,0 +1,15 @@
+{
+    "Atelectasis": 0.05,
+    "Cardiomegaly": 0.88,
+    "Consolidation": 0.12,
+    "Edema": 0.75,
+    "Enlarged Cardiomediastinum": 0.92,
+    "Fracture": 0.01,
+    "Lung Lesion": 0.03,
+    "Lung Opacity": 0.6,
+    "No Finding": 0.02,
+    "Pleural Effusion": 0.18,
+    "Pneumonia": 0.15,
+    "Pneumothorax": 0.0,
+    "Support Devices": 0.99
+}

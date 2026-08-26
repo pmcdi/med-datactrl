@@ -1,0 +1,23 @@
+{
+  "clinical_notes": {
+    "summary": "58yo male presenting with 2-3 week history of exertional substernal chest pressure, 4/10, triggered by moderate activity (stairs, brisk walking), resolving within 5 minutes of rest. Associated mild dyspnea on exertion. Increased fatigue over past month. No rest pain, palpitations, syncope, or diaphoresis. PMH: hypertension, type 2 diabetes, hyperlipidemia, asthma. Medication adherent. No prior episodes of this severity."
+  },
+  "chest_xray": {
+    "summary": "Mild cardiomegaly with cardiothoracic ratio 0.55. Lung fields clear bilaterally, no infiltrates, consolidation, or pleural effusions. Mediastinal contours normal. Aortic knob mildly prominent consistent with age and hypertension. No acute bony abnormalities."
+  },
+  "ecg": {
+    "summary": "Normal sinus rhythm at 72 bpm. PR interval 160ms (normal). QRS duration 88ms (normal). Normal axis. ST-segment depression of 1mm in leads V4-V6 suggesting lateral ischemia. No pathological Q waves. T-wave flattening in leads I and aVL. QTc 420ms (normal)."
+  },
+  "echo": {
+    "summary": "Left ventricular ejection fraction estimated at 45% (mildly reduced). Mild hypokinesis of the lateral wall. Left atrial size normal. No significant valvular disease — trace mitral regurgitation. Normal right ventricular size and function. No pericardial effusion. Diastolic function grade I (impaired relaxation)."
+  },
+  "heart_sounds": {
+    "summary": "S1 and S2 normal intensity and splitting. Grade II/VI systolic murmur at the apex, non-radiating, consistent with trace mitral regurgitation. No diastolic murmurs. No S3 gallop. No S4 gallop. No pericardial rubs or clicks detected. Heart rate regular at 72 bpm."
+  },
+  "lab_results": {
+    "summary": "Troponin I: 0.04 ng/mL (borderline, normal <0.03). BNP: 180 pg/mL (mildly elevated, normal <100). HbA1c: 7.2% (above target of <7%). Fasting glucose: 148 mg/dL (elevated). Total cholesterol: 228 mg/dL, LDL: 142 mg/dL (elevated), HDL: 38 mg/dL (low), triglycerides: 198 mg/dL (elevated). Creatinine: 1.3 mg/dL, eGFR: 68 mL/min (mildly reduced). CBC within normal limits. TSH: 2.1 mIU/L (normal)."
+  },
+  "medication": {
+    "summary": "Active medications: Lisinopril 20mg daily (ACE inhibitor for HTN), Metformin 1000mg BID (diabetes), Atorvastatin 40mg daily (hyperlipidemia), Albuterol inhaler PRN (asthma), Aspirin 81mg daily (cardioprotective). No drug-drug interactions flagged. Note: Atorvastatin dose may be subtherapeutic given LDL 142 mg/dL — consider uptitration to 80mg. Penicillin allergy documented. No contraindications identified."
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "Dorothy Williams",
+  "age": 72,
+  "sex": "F",
+  "blood_type": "AB+",
+  "allergies": ["ACE inhibitors"],
+  "conditions": ["Heart failure (HFrEF)", "Atrial fibrillation", "CKD stage 3", "Hypertension"],
+  "data_dates": {
+    "chest-xray": "2026-02-10",
+    "ecg": "2026-02-24",
+    "clinical-notes": "2026-02-24",
+    "echo": "2026-02-10",
+    "heart-sounds": "2026-02-24",
+    "lab-results": "2026-02-17",
+    "medications": "2026-02-24"
+  }
+}
