@@ -80,7 +80,23 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "columns": {"type": "array", "items": {"type": "string"}},
             "slice_index": {
                 "type": "integer",
-                "description": "DICOM preview slice index (default: middle)",
+                "description": (
+                    "DICOM preview slice index (default: adapter-suggested from "
+                    "geometry; mm-from-end on long-FOV series, otherwise middle)"
+                ),
+            },
+            "window": {
+                "type": "string",
+                "description": (
+                    "CT display window: minmax, abdomen, liver, lung, bone, brain"
+                ),
+            },
+            "overlay": {
+                "type": "boolean",
+                "description": (
+                    "For CT/MR preview, draw linked RTSTRUCT contours on the slice. "
+                    "RTSTRUCT preview always overlays on the referenced image series."
+                ),
             },
         },
         ["resource_id"],
@@ -131,7 +147,38 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         },
         [],
     ),
+    _tool(
+        "dicom_select",
+        (
+            "Rank DICOM series for a clinical query using series description, "
+            "protocol, image type, geometry, and RTSTRUCT ROI names. "
+            "Does not return pixels. Contour/GTV questions select the RTSTRUCT; "
+            "representative CT/MR slice questions select an acquisition. "
+            "Use the selected resource_id with fetch(preview) or analyze_imaging."
+        ),
+        {
+            **_ROOT_OR_CASE,
+            "query": {
+                "type": "string",
+                "description": "Clinical question or anatomy/modality to find",
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Max ranked candidates (default 5)",
+            },
+            "include_localizers": {
+                "type": "boolean",
+                "description": "Include scout/localizer series (default false)",
+            },
+        },
+        ["query"],
+    ),
 ]
+
+
+def gemini_function_declarations() -> list[dict[str, Any]]:
+    """Return Gemini-style function declarations (name/description/parameters)."""
+    return [dict(tool["function"]) for tool in TOOL_DEFINITIONS]
 
 
 def _session_key(root: str | Path) -> str:
@@ -171,7 +218,7 @@ def discover(root: str) -> dict[str, Any]:
     key = _session_key(root)
     case = Case.open(key)
     _SESSIONS[key] = case
-    return case.report.to_dict()
+    return case.report.to_inventory()
 
 
 def describe(
@@ -237,6 +284,19 @@ def dicom_groups(
     return _case_from_args(root=root, case_id=case_id).dicom_groups(query)
 
 
+def dicom_select(
+    query: str,
+    root: str | None = None,
+    case_id: str | None = None,
+    limit: int = 5,
+    include_localizers: bool = False,
+) -> dict[str, Any]:
+    """Rank DICOM series for a query in an open case session."""
+    return _case_from_args(root=root, case_id=case_id).dicom_select(
+        query, limit=limit, include_localizers=include_localizers
+    )
+
+
 _HANDLERS: dict[str, Callable[..., Any]] = {
     "discover": discover,
     "describe": describe,
@@ -245,6 +305,7 @@ _HANDLERS: dict[str, Callable[..., Any]] = {
     "assert_link": assert_link,
     "dicom_tree": dicom_tree,
     "dicom_groups": dicom_groups,
+    "dicom_select": dicom_select,
 }
 
 
