@@ -98,8 +98,38 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
                     "RTSTRUCT preview always overlays on the referenced image series."
                 ),
             },
+            "start": {
+                "type": "integer",
+                "description": "Note span view: start character offset",
+            },
+            "end": {
+                "type": "integer",
+                "description": "Note span view: end character offset (exclusive)",
+            },
+            "context_chars": {
+                "type": "integer",
+                "description": "Note span view: characters of context on each side",
+            },
+            "page_index": {
+                "type": "integer",
+                "description": "PDF note page view: zero-based page index",
+            },
         },
         ["resource_id"],
+    ),
+    _tool(
+        "notes_search",
+        (
+            "Lexical (BM25) search over clinical note sections. Returns note ids, "
+            "section names, character offsets and snippets; use fetch(view='span') "
+            "to read the exact text."
+        ),
+        {
+            **_ROOT_OR_CASE,
+            "query": {"type": "string", "description": "Keywords or a question"},
+            "limit": {"type": "integer", "description": "Max hits (default 8)"},
+        },
+        ["query"],
     ),
     _tool(
         "links",
@@ -297,6 +327,18 @@ def dicom_select(
     )
 
 
+def notes_search(
+    query: str,
+    root: str | None = None,
+    case_id: str | None = None,
+    limit: int = 8,
+) -> dict[str, Any]:
+    """Search note sections in an open case session."""
+    return _case_from_args(root=root, case_id=case_id).notes_search(
+        query, limit=int(limit)
+    )
+
+
 _HANDLERS: dict[str, Callable[..., Any]] = {
     "discover": discover,
     "describe": describe,
@@ -306,6 +348,7 @@ _HANDLERS: dict[str, Callable[..., Any]] = {
     "dicom_tree": dicom_tree,
     "dicom_groups": dicom_groups,
     "dicom_select": dicom_select,
+    "notes_search": notes_search,
 }
 
 

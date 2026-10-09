@@ -1,0 +1,18 @@
+HEPATOLOGY CLINIC NOTE
+DOS: 03/14/2011 (?)  Provider: J. Kim, MD
+
+CC: "they found something on the scan"
+
+HPI:
+72 y/o M w/ known HCV cirrhosis presents for eval of hepatic lesion.
+Denies fever, jaundice, hematemesis.
+
+LABS (drawn 03/10/11):
+  AFP 6.0 ng/mL
+  plt 97
+
+IMPRESSION:
+LR-5 observation segment IVA, 3.9 cm. No PVT. No ascites.
+
+ASSESSMENT/PLAN:
+1. HCC vs regenerative nodule - tumor board referral

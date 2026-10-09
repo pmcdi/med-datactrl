@@ -173,6 +173,10 @@ class DiscoverReport:
             }
             if ref.modality == Modality.DICOM:
                 payload.update(_inventory_dicom_fields(ref))
+            elif ref.modality == Modality.NOTE:
+                for key in ("note_date", "note_type", "text_quality"):
+                    if ref.meta.get(key) is not None:
+                        payload[key] = ref.meta[key]
             return payload
 
         return {

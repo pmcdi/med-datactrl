@@ -22,9 +22,13 @@ for ref in report.resources:
 for table in report.structured:
     print(case.fetch(table.id, view="rows", limit=10))
 
-# Notes
+# Notes (meta: note_date + confidence/flags, note_type, text_quality)
 for note in report.notes:
     print(case.fetch(note.id, view="text", max_chars=2000))
+    print(case.fetch(note.id, view="sections"))                     # headers + char offsets
+    print(case.fetch(note.id, view="span", start=0, end=200, context_chars=100))
+print(case.notes_search("portal vein thrombosis", limit=8))         # BM25 hits with offsets
+# PDF notes: view="page", page_index=N returns one page (pdf_base64 + text + quality)
 
 # DICOM metadata / preview (any slice_index)
 for series in report.dicom:
@@ -89,7 +93,7 @@ dispatch("links", {"root": "/path/to/case", "resource_id": "note:abc123"})
 from datactrl.tools import TOOL_DEFINITIONS, dispatch
 
 print(dispatch("discover", {"root": "/path/to/case"}))
-# compact inventory; then: describe / fetch / links / assert_link / dicom_tree / dicom_groups / dicom_select
+# compact inventory; then: describe / fetch / notes_search / links / assert_link / dicom_tree / dicom_groups / dicom_select
 # Gemini-style declarations: gemini_function_declarations()
 ```
 
