@@ -1254,6 +1254,92 @@ async def get_case_notes(patient_id: str):
     return PlainTextResponse("\n\n".join(chunks) if chunks else "No notes in this case.")
 
 
+@app.get("/api/cases/{patient_id}/notes/span")
+async def get_case_note_span(patient_id: str, id: str, start: int, end: int, context: int = 0):
+    """One note (or OCR transcript, id 'note#ocrN') with highlight offsets for a cited span.
+
+    context=0 returns the whole document; context>0 returns only that many chars around the span.
+    """
+    from datactrl.limits import MAX_NOTE_CHARS
+    from src.agents.notes.ingest import cached_ledger
+
+    try:
+        case = get_case(patient_id)
+    except (KeyError, FileNotFoundError) as exc:
+        return JSONResponse(status_code=404, content={"error": str(exc)})
+    ledger = cached_ledger(patient_id)
+    base_id = id.split("#", 1)[0]
+    ref = next((n for n in case.report.notes if n.id == base_id), None)
+    if ref is None:
+        return JSONResponse(status_code=404, content={"error": f"unknown note id {id}"})
+    doc = (ledger.docs.get(id) if ledger else None) or {}
+    if "#" in id:
+        text = doc.get("text")
+        if text is None:
+            return JSONResponse(status_code=404, content={"error": f"no OCR transcript for {id}"})
+    else:
+        try:
+            text = case.fetch(id, view="text", max_chars=MAX_NOTE_CHARS)["data"]["text"]
+        except Exception as exc:
+            return JSONResponse(status_code=400, content={"error": str(exc)})
+    if not (0 <= start < end <= len(text)):
+        return JSONResponse(status_code=400, content={"error": f"span {start}-{end} outside document ({len(text)} chars)"})
+    lo, hi = (max(0, start - context), min(len(text), end + context)) if context > 0 else (0, len(text))
+    return {
+        "note_id": id,
+        "label": doc.get("label") or ref.label,
+        "note_date": ref.meta.get("note_date"),
+        "note_type": ref.meta.get("note_type"),
+        "derived": doc.get("derived") or "native",
+        "page_index": doc.get("page_index"),
+        "text": text[lo:hi],
+        "offset": lo,
+        "highlight": {"start": start - lo, "end": end - lo},
+        "truncated_before": lo > 0,
+        "truncated_after": hi < len(text),
+    }
+
+
+@app.get("/api/cases/{patient_id}/notes/ledger")
+async def get_case_notes_ledger(patient_id: str, build: bool = False):
+    """Compiled notes ledger view: timeline, conflicts and per-note metadata (no fact bodies)."""
+    from src.agents.notes.ingest import cached_ledger, get_ledger
+
+    try:
+        case = get_case(patient_id)
+    except (KeyError, FileNotFoundError) as exc:
+        return JSONResponse(status_code=404, content={"error": str(exc)})
+    ledger = cached_ledger(patient_id)
+    if ledger is None and build:
+        try:
+            ledger = await asyncio.to_thread(get_ledger, patient_id, case)
+        except Exception as exc:
+            return JSONResponse(status_code=502, content={"error": f"ledger build failed: {exc}"})
+    if ledger is None:
+        return JSONResponse(status_code=404, content={"status": "not_built", "hint": "retry with ?build=true"})
+    return {
+        "patient_id": patient_id,
+        "built_at": ledger.built_at,
+        "model": ledger.model,
+        "notes": ledger.notes,
+        "fact_count": len(ledger.facts),
+        "dropped_count": len(ledger.dropped),
+        "timeline": ledger.timeline,
+        "conflicts": ledger.conflicts,
+    }
+
+
+def _warm_case(patient_id: str) -> None:
+    warmup(patient_id)
+    if os.getenv("NOTES_LEDGER_WARMUP", "0") == "1":
+        from src.agents.notes.ingest import get_ledger
+
+        try:
+            get_ledger(patient_id)
+        except Exception as exc:
+            print(f"[notes] ledger warmup failed for {patient_id}: {exc}")
+
+
 @app.get("/api/cases/{patient_id}/resource")
 async def get_case_resource(patient_id: str, id: str, view: str = "preview"):
     """Serve a datactrl fetch view (PNG preview or JSON/text) for citation cards."""
@@ -1360,7 +1446,7 @@ def start_server(host: str = None, port: int = None):
     signal.signal(signal.SIGTERM, signal_handler)
 
     for record in list_datactrl_patients():
-        threading.Thread(target=warmup, args=(record["id"],), daemon=True).start()
+        threading.Thread(target=_warm_case, args=(record["id"],), daemon=True).start()
 
     try:
         _server.run()
