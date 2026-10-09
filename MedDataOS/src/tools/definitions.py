@@ -29,7 +29,7 @@ def _make_tool(name: str, description: str, extra_properties: dict | None = None
 
 
 TOOL_DECLARATIONS = [
-    _make_tool("analyze_clinical_notes", "Extract key findings from clinical notes including diagnoses, symptoms, history, and clinical relationships."),
+    _make_tool("analyze_clinical_notes", "Answer a question from the patient's clinical notes with source-grounded evidence. Timeline-aware (resolves relative dates), negation-aware, and reports documented discrepancies between notes (e.g. imaging vs pathology) with the more reliable source."),
     _make_tool("analyze_chest_xray", "Analyze chest X-ray image for thoracic pathologies including cardiac silhouette, lung fields, mediastinum, and bony structures."),
     _make_tool("analyze_ecg", "Analyze 12-lead ECG for rhythm, rate, intervals, axis, ST/T-wave changes, and conduction abnormalities."),
     _make_tool("analyze_echo", "Analyze echocardiogram video for LV function, wall motion, valvular assessment, and pericardial evaluation."),

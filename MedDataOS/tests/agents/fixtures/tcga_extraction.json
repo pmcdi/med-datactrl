@@ -1,0 +1,39 @@
+{
+  "radiology_addendum_messy.txt": [
+    {"category": "tumor", "attribute": "tumor.location", "value": "Segment IVA", "assertion": "present", "source_type": "radiology_final", "quote": "Segment IVA (seg 4A) mass measuring 3.87 cm"},
+    {"category": "tumor", "attribute": "tumor.size", "value": "3.87", "unit": "cm", "assertion": "present", "source_type": "radiology_final", "quote": "mass measuring 3.87 cm"},
+    {"category": "tumor", "attribute": "tumor.size_cm", "value": "3.9 cm", "assertion": "present", "source_type": "radiology_final", "quote": "LR-5 observation segment IVA, 3.9 cm"},
+    {"category": "tumor", "attribute": "tumor.size_cm", "value": "4 centimeter", "assertion": "present", "source_type": "radiology_prelim", "quote": "there is a 4 centimeter hypervascular liver mass"},
+    {"category": "tumor", "attribute": "tumor.li_rads", "value": "LR-5", "assertion": "present", "source_type": "radiology_final", "quote": "LI-RADS v2018 category: LR-5 (definitely HCC)"},
+    {"category": "imaging_finding", "attribute": "imaging.portal_vein_thrombosis", "value": "portal vein thrombosis", "assertion": "negated", "source_type": "radiology_final", "quote": "No portal vein thrombosis."},
+    {"category": "imaging_finding", "attribute": "imaging.ascites", "value": "ascites", "assertion": "negated", "source_type": "radiology_final", "quote": "No ascites (0)."}
+  ],
+  "pathology_report_01A-PR.pdf.pdf": [
+    {"category": "tumor", "attribute": "tumor.location", "value": "segment 8", "assertion": "present", "source_type": "pathology", "quote": "B. Liver, segment 8, wedge biopsy"},
+    {"category": "tumor", "attribute": "tumor.size_cm", "value": "3.2 x 2.9 x 2.8 cm", "assertion": "present", "source_type": "pathology", "quote": "forming a single 3.2 x 2.9 x 2.8 cm mass"},
+    {"category": "tumor", "attribute": "tumor.grade", "value": "Moderately differentiated", "assertion": "present", "source_type": "pathology", "quote": "Moderately differentiated\nhepatocellular carcinoma"},
+    {"category": "tumor", "attribute": "tumor.vascular_invasion", "value": "vascular invasion", "assertion": "negated", "source_type": "pathology", "quote": "Vascular invasion is not identified."}
+  ],
+  "hep_clinic_note_2011-03-14.txt": [
+    {"category": "demographics", "attribute": "age", "value": "72", "assertion": "present", "source_type": "physician", "quote": "72 y/o M"},
+    {"category": "demographics", "attribute": "age", "value": "71", "assertion": "present", "source_type": "physician", "quote": "chart says 71??"},
+    {"category": "lab", "attribute": "lab.afp", "value": "6.0 ng/mL", "assertion": "present", "source_type": "physician", "quote": "AFP 6.0 ng/mL", "event_date": "03/10/11"},
+    {"category": "lab", "attribute": "lab.platelets", "value": "97", "assertion": "present", "source_type": "physician", "quote": "plt 97", "event_date": "2011-03-10"},
+    {"category": "diagnosis", "attribute": "diagnosis.primary", "value": "HCC", "assertion": "possible", "source_type": "physician", "quote": "HCC vs regenerative nodule"},
+    {"category": "lab", "attribute": "lab.hcv_genotype", "value": "1a", "assertion": "present", "source_type": "physician", "quote": "HCV genotype 1a confirmed"}
+  ],
+  "operative_note_fragment.txt": [
+    {"category": "tumor", "attribute": "tumor.grade", "value": "G2", "assertion": "present", "source_type": "operative", "quote": "moderately diff HCC, grade G2"},
+    {"category": "procedure", "attribute": "procedure.liver_resection", "value": "liver resection", "assertion": "present", "source_type": "operative", "quote": "Proc: liver resection (segment ?)"},
+    {"category": "tumor", "attribute": "tumor.margin_status", "value": "R0", "assertion": "present", "source_type": "operative", "quote": "margins: R0 per surgeon"}
+  ],
+  "oncology_progress_2013.txt": [
+    {"category": "procedure", "attribute": "procedure.surgical_resection", "value": "surgical resection", "event_date": "2011", "assertion": "historical", "source_type": "physician", "quote": "s/p surgical resection 2011 for HCC"},
+    {"category": "outcome", "attribute": "outcome.recurrence", "value": "RECURRENCE", "relative_time": "~22 mo post-op", "assertion": "present", "source_type": "physician", "quote": "Now ~22 mo post-op (656 days from index??) \u2014 RECURRENCE"},
+    {"category": "treatment", "attribute": "rt.dose_gy", "value": "3000 cGy", "assertion": "present", "source_type": "physician", "quote": "EBRT 3000 cGy / 10 fractions"}
+  ],
+  "nursing_triage_phone_note.txt": [
+    {"category": "tumor", "attribute": "tumor.location", "value": "seg IVA", "assertion": "present", "source_type": "nursing_phone", "quote": "LR-5 lesion seg IVA 3.87cm"},
+    {"category": "vital", "attribute": "vital.weight", "value": "86 kg", "assertion": "present", "source_type": "nursing_phone", "quote": "Weight 86 kg"}
+  ]
+}

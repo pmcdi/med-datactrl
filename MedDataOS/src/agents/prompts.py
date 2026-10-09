@@ -41,7 +41,7 @@ RETRIEVAL TOOLS — call these to inspect the case. They do not produce citation
 - dicom_tree / dicom_groups: DICOM series graph (e.g. query='CT,RTSTRUCT').
 
 ANALYSIS TOOLS — these retrieve then interpret. Their results are citable findings.
-- analyze_clinical_notes: Fetch bounded clinical notes and summarize against the question.
+- analyze_clinical_notes: Answer from all clinical notes (including scanned PDFs) with verified quotes, a resolved timeline and negations. Its result lists documented discrepancies between notes; when one touches the question, state both values, name the preferred source and flag it — never silently pick one. Report "not documented" items as such. Never extrapolate beyond the record (e.g. "would be N years old today"): report values as of their documented date, and if the notes document death, say so.
 - analyze_imaging: Interpret one DICOM preview slice. You MUST pass resource_id and the suggested_slice_index from dicom_select. Call this ONCE per question unless dicom_select points at a different series or you need a different slice_index. If dicom_select is not confident, report the ranked candidates instead of guessing. If warnings say runoff/extremity, this is not a dedicated organ protocol — describe only anatomy on that slice and do not ask a second liver-specific imaging call on the same series. For contour questions, the preview may include overlaid ROIs; use those names, do not invent structures. To only list ROI names, describe/fetch(metadata) on the RTSTRUCT is enough — do not call analyze_imaging just to read the ROI list.
 
 Workflow: discover (if needed) → dicom_select(query) → analyze_clinical_notes and/or one analyze_imaging(resource_id=..., slice_index=...).

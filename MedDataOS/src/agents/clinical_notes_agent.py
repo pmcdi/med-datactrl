@@ -5,17 +5,15 @@ from src.agents.base_agent import BaseAgent, Finding
 
 STUBS_DIR = Path(__file__).resolve().parents[2] / "stubs"
 
-_ANALYSIS_PROMPT = """You are a clinical notes specialist. Given bounded note text from a patient case, answer the clinician's question.
-
-Question: {query}
-
-Notes:
-{notes}
-
-Write a concise clinical summary (4-8 sentences). Include specific values, dates, and note filenames when they matter. Do not invent findings that are not in the notes."""
-
 
 class ClinicalNotesAgent(BaseAgent):
+    """Clinical notes agent.
+
+    datactrl cases use the compile-then-navigate pipeline in ``src.agents.notes``
+    (grounded fact ledger, timeline, conflicts, verified span citations).
+    Demo patients return their stub summary.
+    """
+
     modality = "clinical_notes"
     data_dir = "clinical-notes"
     file_ext = ".txt"
@@ -39,37 +37,26 @@ class ClinicalNotesAgent(BaseAgent):
         )
 
     def _analyze_case(self, patient_id: str, query: str) -> Finding:
-        from src.core.gemini_client import GEMINI_MODEL, create_client
+        from src.agents.notes.agent import answer_question
         from src.retrieval.case_store import get_case
 
         case = get_case(patient_id)
-        notes = list(case.report.notes)
-        if not notes:
+        web_path = f"/api/cases/{patient_id}/notes"
+        if not case.report.notes:
             return Finding(
                 agent=self.modality,
                 file="clinical_notes.txt",
-                web_path=f"/api/cases/{patient_id}/notes",
+                web_path=web_path,
                 summary="No clinical notes were discovered for this case.",
             )
-
-        chunks: list[str] = []
-        for note in notes:
-            fetched = case.fetch(note.id, view="text")
-            body = fetched["data"].get("text") or ""
-            chunks.append(f"## {note.label} ({note.path})\n{body}")
-        combined = "\n\n".join(chunks)
-        if len(combined) > 16_000:
-            combined = combined[:16_000] + "\n\n[truncated]"
-
-        client = create_client()
-        response = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=_ANALYSIS_PROMPT.format(query=query, notes=combined),
-        )
-        summary = (response.text or "").strip() or "Notes were retrieved but no summary was produced."
+        result = answer_question(patient_id, query, case=case)
+        stats = {k: v for k, v in result.stats.items() if k != "dropped_claims"}
+        print(f"[notes] {patient_id} mode={result.mode} stats={stats}")
         return Finding(
             agent=self.modality,
             file="clinical_notes.txt",
-            web_path=f"/api/cases/{patient_id}/notes",
-            summary=summary,
+            web_path=web_path,
+            summary=result.summary,
+            evidence=result.evidence,
+            conflicts=result.conflicts,
         )

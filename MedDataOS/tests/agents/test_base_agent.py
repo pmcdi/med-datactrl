@@ -18,7 +18,12 @@ class DummyAgent(BaseAgent):
 
 def test_finding_is_dataclass():
     field_names = {f.name for f in fields(Finding)}
-    assert field_names == {"agent", "file", "web_path", "summary"}
+    assert field_names == {"agent", "file", "web_path", "summary", "evidence", "conflicts"}
+
+
+def test_finding_evidence_and_conflicts_default_empty():
+    f = Finding(agent="ecg", file="P0001.svg", web_path="/x", summary="s")
+    assert f.evidence == [] and f.conflicts == []
 
 
 def test_finding_instantiation():

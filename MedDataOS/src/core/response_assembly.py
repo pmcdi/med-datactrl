@@ -6,7 +6,7 @@ from src.agents.base_agent import Finding
 def assemble_response(gemini_text: str, findings: list[Finding], knowledge_bus: dict) -> str:
     citations = []
     for i, finding in enumerate(findings):
-        citations.append({
+        citation = {
             "id": str(i + 1),
             "agent": finding.agent,
             "file": finding.file,
@@ -16,5 +16,10 @@ def assemble_response(gemini_text: str, findings: list[Finding], knowledge_bus: 
                 "supported_by": [],
                 "contradicted_by": [],
             }),
-        })
+        }
+        if finding.evidence:
+            citation["evidence"] = finding.evidence
+        if finding.conflicts:
+            citation["conflicts"] = finding.conflicts
+        citations.append(citation)
     return json.dumps({"response": gemini_text, "citations": citations}, ensure_ascii=False)

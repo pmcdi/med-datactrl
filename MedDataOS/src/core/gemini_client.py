@@ -10,6 +10,10 @@ from google.genai import types
 # Best free-tier model (gemini-3.1-pro-preview is paid-only).
 GEMINI_MODEL = "gemini-3.6-flash"
 
+# Clinical notes agent stages: per-note extraction/OCR vs. query-time reasoning.
+NOTES_EXTRACT_MODEL = os.getenv("NOTES_EXTRACT_MODEL", GEMINI_MODEL)
+NOTES_REASON_MODEL = os.getenv("NOTES_REASON_MODEL", GEMINI_MODEL)
+
 def create_client():
     """Create and return a Gemini API client."""
     GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')

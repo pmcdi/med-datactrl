@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -8,6 +8,8 @@ class Finding:
     file: str       # "P0001.svg"
     web_path: str   # "/multimodal-data/ecg/P0001.svg"
     summary: str    # "Sinus rhythm 72 bpm, ST depression V4-V6"
+    evidence: list[dict] = field(default_factory=list)   # cited source spans (notes agent)
+    conflicts: list[dict] = field(default_factory=list)  # documented discrepancies
 
 
 class BaseAgent(ABC):

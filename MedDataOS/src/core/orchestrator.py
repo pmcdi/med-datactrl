@@ -40,6 +40,28 @@ DATACTRL_AGENTS = {
 }
 
 
+def _finding_payload(finding: Finding) -> dict:
+    """Function response for the orchestrator model: summary plus compact provenance."""
+    payload: dict = {"summary": finding.summary}
+    if finding.evidence:
+        payload["evidence"] = [
+            {"n": e.get("n"), "note": e.get("label"), "date": e.get("note_date"), "quote": e.get("quote")}
+            for e in finding.evidence
+        ]
+    if finding.conflicts:
+        payload["conflicts"] = [
+            {
+                "attribute": c.get("attribute"),
+                "kind": c.get("kind"),
+                "severity": c.get("severity"),
+                "values": [f"{v.get('value')} ({v.get('note_label')})" for v in c.get("values", [])],
+                "rationale": c.get("rationale"),
+            }
+            for c in finding.conflicts
+        ]
+    return payload
+
+
 def has_function_calls(response) -> bool:
     try:
         parts = response.candidates[-1].content.parts
@@ -175,7 +197,7 @@ def run_pipeline(
 
             function_responses.append(
                 types.Part.from_function_response(
-                    name=tc.name, response={"summary": finding.summary},
+                    name=tc.name, response=_finding_payload(finding),
                 )
             )
 

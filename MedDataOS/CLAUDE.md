@@ -175,6 +175,17 @@ The orchestrator returns JSON (not plain text) when citations are present:
 | `lab_results` | Lab results chart | `.png` (HL7v2 source) |
 | `medication` | Medication history | `.csv` |
 
+### Clinical Notes Agent (datactrl cases)
+`src/agents/notes/` implements compile-then-navigate:
+- **Ledger** (`ingest.py`): per-note Gemini extraction of atomic facts, each grounded to char offsets (`grounding.py`; ungrounded facts are dropped). Low-quality PDF pages are vision-OCR'd into `note:<id>#ocrN` docs. Cached per patient in `workspace/notes_ledger/` and refreshed per note by content hash.
+- **Timeline / conflicts** (`timeline.py`, `conflicts.py`): deterministic relative-date anchoring and cross-note discrepancy detection ranked by source reliability; string discordances are LLM-adjudicated once at build time.
+- **Answering** (`agent.py`): direct mode when the chart fits `NOTES_DIRECT_BUDGET`, otherwise a bounded tool loop (ledger/timeline/conflicts/BM25 search/span reads plus a depth-1 `recurse` extraction sub-call).
+- **Verification** (`verify.py`): claims survive only with located quotes that pass a batched entailment check; "not documented" items are kept as abstentions.
+
+The finding carries `evidence` (quote, note, date, offsets, `span_url`) and `conflicts`; citations pass them to the frontend, which highlights quotes and shows discrepancies. Endpoints: `GET /api/cases/{id}/notes/span?id=&start=&end=` and `GET /api/cases/{id}/notes/ledger[?build=true]`.
+
+Env: `NOTES_EXTRACT_MODEL`, `NOTES_REASON_MODEL` (default `GEMINI_MODEL`), `NOTES_DIRECT_BUDGET` (150000 chars), `NOTES_ENTAILMENT=0` / `NOTES_ADJUDICATE=0` to disable those LLM checks, `NOTES_LEDGER_WARMUP=1` to build ledgers at server start. Live QA eval: `NOTES_LIVE_EVAL=1 pytest tests/agents/test_notes_agent.py -k gold_live`.
+
 ### Citation Card Rendering (Frontend)
 Cards are fixed size (340px wide, 210px content area). Content adapts by file type:
 - `.png` / `.jpg` → `<img>` with dark letterbox (`object-fit: contain`)
@@ -182,7 +193,7 @@ Cards are fixed size (340px wide, 210px content area). Content adapts by file ty
 - `.mp4` → `<video>` with controls
 - `.wav` → `<audio>` with controls, centered in card with ♫ icon
 - `.csv` → scrollable HTML table (all rows, first 5 columns)
-- `.txt` → scrollable text excerpt
+- `.txt` → scrollable text excerpt (notes citations with `evidence` show highlighted quotes instead; the modal opens the source note at the cited span)
 
 ### Hover Interaction
 - Hover citation badge → card appears below (flips above if near screen bottom)
