@@ -352,7 +352,9 @@ def compose_summary(verified: VerifiedAnswer) -> str:
             continue
         if conflict["kind"] == "date_inconsistency":
             v = conflict["values"][0]
-            discrepancies.append(f"date of {v['note_label']} ({v['value']}) is inconsistent with the rest of the record")
+            discrepancies.append(
+                f"{v['value']} recorded on {v['note_label']} is inconsistent with the rest of the record"
+            )
             continue
         values = " vs ".join(f"{v['value']} ({v['note_label']})" for v in conflict["values"])
         discrepancies.append(f"{_readable(conflict['attribute'])}: {values}")
