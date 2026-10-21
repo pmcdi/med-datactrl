@@ -30,7 +30,15 @@ from datactrl.limits import (
     MAX_SPAN_CONTEXT_CHARS,
     NOTE_META_SNIFF_CHARS,
 )
-from datactrl.notes_index import (
+from datactrl.types import (
+    DescribeResult,
+    FetchResult,
+    Modality,
+    ResourceRef,
+    ViewSpec,
+    make_resource_id,
+)
+from datactrl.utils.notes_index import (
     BM25Index,
     Section,
     build_chunks,
@@ -40,14 +48,6 @@ from datactrl.notes_index import (
     sectionize,
     snippet,
     text_quality,
-)
-from datactrl.types import (
-    DescribeResult,
-    FetchResult,
-    Modality,
-    ResourceRef,
-    ViewSpec,
-    make_resource_id,
 )
 
 
@@ -103,6 +103,10 @@ class NotesAdapter:
         """Return supported note fetch views."""
         return _VIEWS
 
+    # -----------------------------------------------------------------------
+    # Ingest
+    # -----------------------------------------------------------------------
+
     def ingest(self, root: Path, paths: Sequence[Path]) -> list[ResourceRef]:
         """Index note files under ``root`` with date/type/quality metadata."""
         self._notes.clear()
@@ -125,6 +129,10 @@ class NotesAdapter:
             self._notes[note_id] = _NoteRecord(ref=ref, path=path, format=fmt)
             refs.append(ref)
         return refs
+
+    # -----------------------------------------------------------------------
+    # Describe, fetch, and search
+    # -----------------------------------------------------------------------
 
     def describe(self, resource_id: str) -> DescribeResult:
         """Return format, char count, date/type metadata and a short preview."""
@@ -359,6 +367,11 @@ class NotesAdapter:
             return self._notes[resource_id]
         except KeyError as exc:
             raise ResourceNotFound(f"Unknown note: {resource_id!r}") from exc
+
+
+# ---------------------------------------------------------------------------
+# Readers
+# ---------------------------------------------------------------------------
 
 
 def _sniff_meta(path: Path, fmt: str) -> dict[str, Any]:

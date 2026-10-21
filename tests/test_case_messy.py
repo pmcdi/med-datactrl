@@ -188,7 +188,7 @@ def test_gemini_function_declarations_shape():
 
     decls = gemini_function_declarations()
     names = {item["name"] for item in decls}
-    assert {"discover", "describe", "fetch", "dicom_select"} <= names
+    assert {"discover", "describe", "fetch", "dicom_groups"} <= names
     for item in decls:
         assert "parameters" in item
         assert "type" not in item or item.get("type") != "function"

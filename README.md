@@ -30,13 +30,12 @@ for note in report.notes:
 print(case.notes_search("portal vein thrombosis", limit=8))         # BM25 hits with offsets
 # PDF notes: view="page", page_index=N returns one page (pdf_base64 + text + quality)
 
-# DICOM metadata / preview (any slice_index)
+# DICOM: pick a series from inventory or dicom_tree / dicom_groups, then describe → fetch
 for series in report.dicom:
-    print(case.describe(series.id)["links"])  # structural SEG↔CT etc.
+    print(case.describe(series.id)["views"])  # preview omitted for RTPLAN/RTDOSE etc.
+    print(case.describe(series.id)["links"])
 print(case.fetch(report.dicom[0].id, view="metadata"))
 print(case.fetch(report.dicom[0].id, view="preview", slice_index=0))
-print(case.dicom_select("liver CT"))  # ranked series + mm-based slice, no pixels
-print(case.dicom_select("which structures are contoured"))  # RTSTRUCT + ROI names
 print(case.dicom_groups("CT,SEG"))
 ```
 
@@ -93,7 +92,7 @@ dispatch("links", {"root": "/path/to/case", "resource_id": "note:abc123"})
 from datactrl.tools import TOOL_DEFINITIONS, dispatch
 
 print(dispatch("discover", {"root": "/path/to/case"}))
-# compact inventory; then: describe / fetch / notes_search / links / assert_link / dicom_tree / dicom_groups / dicom_select
+# compact inventory; then: describe / fetch / notes_search / links / assert_link / dicom_tree / dicom_groups
 # Gemini-style declarations: gemini_function_declarations()
 ```
 

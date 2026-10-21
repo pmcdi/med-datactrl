@@ -8,134 +8,78 @@ import numpy as np
 import pytest
 
 from datactrl import Case
-from datactrl.dicom_index import (
+from datactrl.utils.dicom_meta import (
     ABDOMEN_FROM_SUPERIOR_MM,
     classify_series_kind,
-    parse_query_intent,
-    rank_series,
+    infer_regions,
     suggested_slice_index,
 )
-from datactrl.types import Modality, ResourceRef
+from datactrl.utils.dicom_views import preview_supported, views_for_series
 
 pydicom = pytest.importorskip("pydicom")
 from pydicom.dataset import Dataset, FileDataset
 from pydicom.uid import ExplicitVRLittleEndian, generate_uid
 
 
-def _ref(key: str, **meta) -> ResourceRef:
-    return ResourceRef(
-        id=f"dicom:{key}",
-        modality=Modality.DICOM,
-        label=str(meta.get("SeriesDescription") or key),
-        meta=meta,
-    )
+# ---------------------------------------------------------------------------
+# Classification and slice heuristics
+# ---------------------------------------------------------------------------
 
 
 def test_classify_kind_from_image_type_and_tokens():
-    assert classify_series_kind(["ORIGINAL", "PRIMARY", "LOCALIZER"], "CT") == "localizer"
-    assert classify_series_kind(["ORIGINAL", "PRIMARY", "AXIAL"], "Topogram 0.6") == "localizer"
+    assert (
+        classify_series_kind(["ORIGINAL", "PRIMARY", "LOCALIZER"], "CT") == "localizer"
+    )
+    assert (
+        classify_series_kind(["ORIGINAL", "PRIMARY", "AXIAL"], "Topogram 0.6")
+        == "localizer"
+    )
     assert classify_series_kind(["DERIVED", "SECONDARY"], "screen save") == "derived"
-    assert classify_series_kind(["ORIGINAL", "PRIMARY", "AXIAL"], "AX LAVA") == "acquisition"
+    assert (
+        classify_series_kind(["ORIGINAL", "PRIMARY", "AXIAL"], "AX LAVA")
+        == "acquisition"
+    )
     assert classify_series_kind(None, "", modality="RTSTRUCT") == "rtstruct"
     assert classify_series_kind(None, "", modality="RTPLAN") == "rtplan"
 
 
-def test_parse_query_intent_ct_and_hep():
-    intent = parse_query_intent(
-        "What did the hep clinic note say, and what does a representative CT slice show?"
-    )
-    assert "CT" in intent.modalities
-    assert "abdomen" in intent.regions
+def test_preview_views_exclude_rt_objects():
+    assert not preview_supported({"Modality": "RTPLAN", "series_kind": "rtplan"})
+    assert not preview_supported({"Modality": "RTDOSE", "series_kind": "rtdose"})
+    rtplan_views = [
+        s.name
+        for s in views_for_series({"Modality": "RTPLAN", "series_kind": "rtplan"})
+    ]
+    assert rtplan_views == ["metadata"]
+    ct_views = [
+        s.name
+        for s in views_for_series({"Modality": "CT", "series_kind": "acquisition"})
+    ]
+    assert "preview" in ct_views
+    rt_views = [
+        s.name
+        for s in views_for_series({"Modality": "RTSTRUCT", "series_kind": "rtstruct"})
+    ]
+    assert "preview" in rt_views
+    pt_views = views_for_series({"Modality": "PT", "series_kind": "acquisition"})
+    pt_spec = next(spec for spec in pt_views if spec.name == "preview")
+    assert pt_spec.defaults["window"] == "pet"
+    assert "overlay=true" in pt_spec.description
 
 
-def test_rank_prefers_liver_mr_over_runoff_ct_for_organ_query():
-    refs = _runoff_fixture_refs()
-    result = rank_series(refs, "liver lesion on MRI")
-    assert result["confident"]
-    assert result["selected"]["id"] == "dicom:lava"
-    assert result["selected"]["Modality"] == "MR"
+def test_infer_regions_from_text():
+    assert "abdomen" in infer_regions("representative CT slice of the liver")
+    assert "neck" in infer_regions("representative CT slice of the neck")
 
 
-def test_rank_ct_query_skips_localizer_and_uses_superior_slice():
-    refs = _runoff_fixture_refs()
-    query = (
-        "What did the hep clinic note say, and what does a representative CT slice show?"
-    )
-    result = rank_series(refs, query)
-    assert result["confident"]
-    selected = result["selected"]
-    assert selected["id"] == "dicom:runoff5"
-    assert selected["series_kind"] == "acquisition"
-    assert selected["id"] != "dicom:topogram"
-    assert selected["id"] != "dicom:delay"
-    # Long-FOV abdomen: ~80 mm below the superior end, not 15% and not mid-thigh.
-    assert selected["suggested_slice_index"] == _abdomen_index(-174.0, -1510.0, 268)
-    assert selected["suggested_slice_index"] != 268 // 2
-    assert "runoff" in " ".join(selected["warnings"]).lower() or any(
-        "extremity" in reason or "runoff" in reason for reason in selected["reasons"]
-    )
-    ids = [item["id"] for item in result["candidates"]]
-    assert "dicom:topogram" not in ids
+def test_preferred_roi_name_priority():
+    from datactrl.utils.rtstruct import preferred_roi_name
 
-
-def test_rank_body_part_liver_does_not_override_runoff_series_text():
-    refs = _runoff_fixture_refs()
-    result = rank_series(refs, "hepatic mass")
-    assert result["selected"]["id"] == "dicom:lava"
-
-
-def test_choose_preview_window_by_region():
-    from datactrl.dicom_index import choose_preview_window
-
-    assert choose_preview_window("MR", parse_query_intent("liver")) == "minmax"
-    assert choose_preview_window("CT", parse_query_intent("liver CT")) == "liver"
-    assert choose_preview_window("CT", parse_query_intent("chest CT")) == "lung"
-    assert choose_preview_window("CT", parse_query_intent("representative CT")) == "abdomen"
-    assert choose_preview_window("CT", parse_query_intent("larynx CT")) == "abdomen"
-    assert choose_preview_window("CT", parse_query_intent("brain CT")) == "brain"
-
-
-def test_parse_query_intent_neck_and_contours():
-    neck = parse_query_intent("representative CT slice of the neck")
-    assert "CT" in neck.modalities
-    assert "neck" in neck.regions
-    assert not neck.contours
-
-    contours = parse_query_intent(
-        "Which structures are contoured on the planning CT, and is there a GTV?"
-    )
-    assert contours.contours
-    assert "CT" in contours.modalities
-
-
-def test_rank_contour_query_prefers_rtstruct():
-    refs = _hnc_fixture_refs()
-    result = rank_series(refs, "which structures are contoured on the planning CT")
-    assert result["confident"]
-    assert result["selected"]["id"] == "dicom:rt"
-    assert result["selected"]["series_kind"] == "rtstruct"
-    assert "GTVp" in (result["selected"].get("roi_names") or [])
-
-
-def test_rank_ct_slice_skips_rtstruct():
-    refs = _hnc_fixture_refs()
-    result = rank_series(refs, "representative CT slice of the neck")
-    assert result["confident"]
-    assert result["selected"]["id"] == "dicom:neck"
-    assert result["selected"]["series_kind"] == "acquisition"
-
-
-def test_patient_xyz_to_pixel_identity():
-    from datactrl.rtstruct import patient_xyz_to_pixel
-
-    col, row = patient_xyz_to_pixel(
-        (10.0, 20.0, 5.0),
-        (0.0, 0.0, 5.0),
-        (1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
-        (1.0, 1.0),
-    )
-    assert col == 10.0
-    assert row == 20.0
+    assert preferred_roi_name(["SpinalCord", "Larynx", "PTV70", "GTVp"]) == "GTVp"
+    assert preferred_roi_name(["Body", "Larynx"]) == "Larynx"
+    assert preferred_roi_name(["Kidney", "Mass"]) == "Mass"
+    assert preferred_roi_name(["Brainstem"]) == "Brainstem"
+    assert preferred_roi_name([]) is None
 
 
 def test_suggested_slice_middle_for_short_fov():
@@ -157,8 +101,7 @@ def test_suggested_slice_is_mm_from_superior_on_long_fov():
         "z_last_mm": -1510.0,
         "z_span_mm": 1336.0,
     }
-    intent = parse_query_intent("representative CT slice of the liver")
-    idx = suggested_slice_index(cranio_caudal, intent)
+    idx = suggested_slice_index(cranio_caudal, regions=frozenset({"abdomen"}))
     assert idx == _abdomen_index(-174.0, -1510.0, 268)
     assert idx < 40  # much closer to the superior end than the old 15% pick
 
@@ -170,7 +113,7 @@ def test_suggested_slice_is_mm_from_superior_on_long_fov():
         "z_last_mm": -174.0,
         "z_span_mm": 1336.0,
     }
-    idx = suggested_slice_index(caudo_cranial, intent)
+    idx = suggested_slice_index(caudo_cranial, regions=frozenset({"abdomen"}))
     assert idx == _abdomen_index(-1510.0, -174.0, 268)
     assert idx > 240
 
@@ -182,101 +125,9 @@ def _abdomen_index(z_first: float, z_last: float, n: int) -> int:
     return int(round((target - z_first) / (z_last - z_first) * last_i))
 
 
-def _runoff_fixture_refs() -> list[ResourceRef]:
-    return [
-        _ref(
-            "topogram",
-            Modality="CT",
-            SeriesDescription="Topogram 0.6 T20s",
-            series_kind="localizer",
-            instance_count=1,
-            BodyPartExamined="LIVER",
-        ),
-        _ref(
-            "runoff5",
-            Modality="CT",
-            SeriesDescription="AP Runoff 5.0 B41f",
-            ProtocolName="AP_RUNOFF",
-            StudyDescription="CT ANGIO ABD/PELVIS W RUNOFFS",
-            BodyPartExamined="LIVER",
-            series_kind="acquisition",
-            instance_count=268,
-            z_first_mm=-174.0,
-            z_last_mm=-1510.0,
-            z_span_mm=1336.0,
-            z_superior_mm=-174.0,
-        ),
-        _ref(
-            "runoff1",
-            Modality="CT",
-            SeriesDescription="AP Runoff 1.0 B31f",
-            ProtocolName="AP_RUNOFF",
-            StudyDescription="CT ANGIO ABD/PELVIS W RUNOFFS",
-            BodyPartExamined="LIVER",
-            series_kind="acquisition",
-            instance_count=1338,
-            z_first_mm=-174.0,
-            z_last_mm=-1510.0,
-            z_span_mm=1336.0,
-            z_superior_mm=-174.0,
-        ),
-        _ref(
-            "delay",
-            Modality="CT",
-            SeriesDescription="Delay 5.0 B31f",
-            ProtocolName="AP_RUNOFF",
-            StudyDescription="CT ANGIO ABD/PELVIS W RUNOFFS",
-            BodyPartExamined="LIVER",
-            series_kind="acquisition",
-            instance_count=125,
-            z_first_mm=-889.0,
-            z_last_mm=-1510.0,
-            z_span_mm=621.0,
-            z_superior_mm=-889.0,
-        ),
-        _ref(
-            "lava",
-            Modality="MR",
-            SeriesDescription="AX LAVA",
-            ProtocolName="liver",
-            StudyDescription="MR ABDOMEN W/WO CONTRAST",
-            BodyPartExamined="LIVER",
-            series_kind="acquisition",
-            instance_count=88,
-            z_first_mm=-80.0,
-            z_last_mm=-280.0,
-            z_span_mm=200.0,
-            z_superior_mm=-80.0,
-        ),
-    ]
-
-
-def _hnc_fixture_refs() -> list[ResourceRef]:
-    return [
-        _ref(
-            "neck",
-            Modality="CT",
-            SeriesDescription="Neck 2.0 CE",
-            ProtocolName="Head and Neck",
-            StudyDescription="Research HNC Planning CT",
-            series_kind="acquisition",
-            instance_count=181,
-            z_first_mm=-792.0,
-            z_last_mm=-1152.0,
-            z_span_mm=360.0,
-            z_superior_mm=-792.0,
-        ),
-        _ref(
-            "rt",
-            Modality="RTSTRUCT",
-            SeriesDescription="",
-            series_kind="rtstruct",
-            instance_count=1,
-            roi_names=["SpinalCord", "Esophagus", "GTVp", "Larynx", "EXTERNAL"],
-            preferred_roi="GTVp",
-            ReferencedSeriesUID="neck-uid",
-        ),
-    ]
+# ---------------------------------------------------------------------------
+# Synthetic DICOM fixtures
+# ---------------------------------------------------------------------------
 
 
 def _write_tiny_ct(
@@ -293,6 +144,7 @@ def _write_tiny_ct(
     study_uid: str | None = None,
     frame_of_reference_uid: str | None = None,
     sop_uid: str | None = None,
+    modality: str = "CT",
 ) -> str:
     file_meta = Dataset()
     file_meta.MediaStorageSOPClassUID = "1.2.840.10008.5.1.4.1.1.2"
@@ -306,11 +158,15 @@ def _write_tiny_ct(
     ds.PatientID = "TEST"
     ds.StudyInstanceUID = study_uid or generate_uid()
     ds.SeriesInstanceUID = series_uid
-    ds.Modality = "CT"
+    ds.Modality = modality
     ds.SeriesDescription = series_description
     ds.InstanceNumber = instance_number
     ds.ImageType = image_type or ["ORIGINAL", "PRIMARY", "AXIAL"]
-    ds.ImagePositionPatient = [0.0, 0.0, float(z_mm if z_mm is not None else -instance_number)]
+    ds.ImagePositionPatient = [
+        0.0,
+        0.0,
+        float(z_mm if z_mm is not None else -instance_number),
+    ]
     ds.ImageOrientationPatient = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
     ds.PixelSpacing = [1.0, 1.0]
     ds.SliceThickness = 2.0
@@ -345,6 +201,7 @@ def _write_tiny_rtstruct(
     referenced_sop_uid: str,
     roi_name: str = "GTVp",
     z_mm: float = -2.0,
+    rois: list[tuple[str, float]] | None = None,
 ) -> None:
     file_meta = Dataset()
     file_meta.MediaStorageSOPClassUID = "1.2.840.10008.5.1.4.1.1.481.3"
@@ -364,32 +221,44 @@ def _write_tiny_rtstruct(
     ds.StructureSetTime = "120000"
     ds.FrameOfReferenceUID = frame_of_reference_uid
 
-    roi = Dataset()
-    roi.ROINumber = 1
-    roi.ROIName = roi_name
-    roi.ReferencedFrameOfReferenceUID = frame_of_reference_uid
-    ds.StructureSetROISequence = [roi]
-
+    entries = list(rois) if rois else [(roi_name, z_mm)]
+    structures: list[Dataset] = []
+    contours: list[Dataset] = []
     contour_image = Dataset()
     contour_image.ReferencedSOPClassUID = "1.2.840.10008.5.1.4.1.1.2"
     contour_image.ReferencedSOPInstanceUID = referenced_sop_uid
+    for number, (name, z) in enumerate(entries, start=1):
+        roi = Dataset()
+        roi.ROINumber = number
+        roi.ROIName = name
+        roi.ReferencedFrameOfReferenceUID = frame_of_reference_uid
+        structures.append(roi)
 
-    contour = Dataset()
-    contour.ContourGeometricType = "CLOSED_PLANAR"
-    contour.NumberOfContourPoints = 4
-    contour.ContourImageSequence = [contour_image]
-    contour.ContourData = [
-        1.0, 1.0, z_mm,
-        6.0, 1.0, z_mm,
-        6.0, 6.0, z_mm,
-        1.0, 6.0, z_mm,
-    ]
-
-    roi_contour = Dataset()
-    roi_contour.ReferencedROINumber = 1
-    roi_contour.ROIDisplayColor = [255, 0, 0]
-    roi_contour.ContourSequence = [contour]
-    ds.ROIContourSequence = [roi_contour]
+        contour = Dataset()
+        contour.ContourGeometricType = "CLOSED_PLANAR"
+        contour.NumberOfContourPoints = 4
+        contour.ContourImageSequence = [contour_image]
+        contour.ContourData = [
+            1.0,
+            1.0,
+            z,
+            6.0,
+            1.0,
+            z,
+            6.0,
+            6.0,
+            z,
+            1.0,
+            6.0,
+            z,
+        ]
+        roi_contour = Dataset()
+        roi_contour.ReferencedROINumber = number
+        roi_contour.ROIDisplayColor = [255, 0, 0]
+        roi_contour.ContourSequence = [contour]
+        contours.append(roi_contour)
+    ds.StructureSetROISequence = structures
+    ds.ROIContourSequence = contours
 
     rt_series = Dataset()
     rt_series.SeriesInstanceUID = referenced_series_uid
@@ -407,12 +276,19 @@ def _write_tiny_rtstruct(
     ds.save_as(path, enforce_file_format=True)
 
 
+# ---------------------------------------------------------------------------
+# Case previews
+# ---------------------------------------------------------------------------
+
+
 def test_dicom_discover_and_metadata(tmp_path: Path):
     series_uid = generate_uid()
     series_dir = tmp_path / "ct"
     series_dir.mkdir()
     for i in range(2):
-        _write_tiny_ct(series_dir / f"img{i}.dcm", series_uid=series_uid, instance_number=i + 1)
+        _write_tiny_ct(
+            series_dir / f"img{i}.dcm", series_uid=series_uid, instance_number=i + 1
+        )
 
     # Mix in a note so discovery is multimodal.
     (tmp_path / "note.txt").write_text("synthetic case")
@@ -465,41 +341,35 @@ def test_dicom_discover_and_metadata(tmp_path: Path):
     assert preview["bounds"]["n_slices"] == 2
 
 
-def test_dicom_select_skips_localizer(tmp_path: Path):
-    axial_uid = generate_uid()
-    loc_uid = generate_uid()
-    axial_dir = tmp_path / "axial"
-    loc_dir = tmp_path / "scout"
-    axial_dir.mkdir()
-    loc_dir.mkdir()
-    for i in range(3):
+def test_series_kind_uses_header_image_type(tmp_path: Path):
+    series_uid = generate_uid()
+    for i in range(2):
         _write_tiny_ct(
-            axial_dir / f"img{i}.dcm",
-            series_uid=axial_uid,
+            tmp_path / f"loc{i}.dcm",
+            series_uid=series_uid,
             instance_number=i + 1,
-            series_description="AXIAL ABDOMEN",
-            z_mm=-10.0 * i,
+            series_description="Scout",
+            image_type=["ORIGINAL", "PRIMARY", "LOCALIZER"],
+            study="CT ABDOMEN",
         )
-    _write_tiny_ct(
-        loc_dir / "scout.dcm",
-        series_uid=loc_uid,
-        instance_number=1,
-        series_description="Topogram 0.6 T20s",
-        image_type=["ORIGINAL", "PRIMARY", "LOCALIZER"],
-        z_mm=0.0,
-    )
 
     case = Case.open(tmp_path)
-    result = case.dicom_select("representative CT slice of the abdomen")
-    assert result["confident"]
-    assert result["selected"]["label"] == "AXIAL ABDOMEN"
-    assert result["selected"]["series_kind"] == "acquisition"
-    kinds = {item["series_kind"] for item in result["candidates"]}
-    assert "localizer" not in kinds
+    series = case.report.dicom[0]
+    assert series.label == "Scout"
+    assert series.meta["ImageType"] == ["ORIGINAL", "PRIMARY", "LOCALIZER"]
+    assert series.meta["StudyDescription"] == "CT ABDOMEN"
+    assert series.meta["series_kind"] == "localizer"
 
 
 def test_summarize_rtstruct_lists_rois_and_prefers_gtv(tmp_path: Path):
-    from datactrl.rtstruct import overlay_contours, summarize_rt_file
+    from imgtools.coretypes import Scan
+
+    from datactrl.utils.rtstruct import (
+        load_structure_set,
+        overlay_rtstruct,
+        rtstruct_slice_index,
+        summarize_rt_file,
+    )
 
     study_uid = generate_uid()
     ct_uid = generate_uid()
@@ -529,15 +399,22 @@ def test_summarize_rtstruct_lists_rois_and_prefers_gtv(tmp_path: Path):
     assert summary["preferred_roi"] == "GTVp"
     assert summary["referenced_series_uid"] == ct_uid
     assert summary["structure_set_label"] == "Unapproved"
+    assert summary["preferred_roi_z_mm"] == -2.0
 
     from PIL import Image
 
+    scan = Scan.from_dicom(str(tmp_path), series_id=ct_uid)
+    rt = load_structure_set(tmp_path / "rt.dcm")
+    assert rtstruct_slice_index(rt, scan, "GTVp") == 0
+
     blank = Image.new("RGB", (8, 8), (0, 0, 0))
-    drawn, meta = overlay_contours(blank, tmp_path / "ct.dcm", tmp_path / "rt.dcm")
+    drawn, meta = overlay_rtstruct(blank, scan, 0, rt)
     assert meta["overlay"] is True
     assert meta["overlay_rois"][0]["name"] == "GTVp"
     arr = np.asarray(drawn)
     assert arr.any()
+    # Contour spans pixels 1..6; the outline must not touch the far corner.
+    assert not arr[7, 7].any()
 
 
 def test_rtstruct_discover_and_preview(tmp_path: Path):
@@ -578,20 +455,153 @@ def test_rtstruct_discover_and_preview(tmp_path: Path):
     case = Case.open(tmp_path)
     kinds = {ref.meta.get("series_kind") for ref in case.report.dicom}
     assert "rtstruct" in kinds
-    rt_ref = next(ref for ref in case.report.dicom if ref.meta.get("series_kind") == "rtstruct")
+    rt_ref = next(
+        ref for ref in case.report.dicom if ref.meta.get("series_kind") == "rtstruct"
+    )
     assert "GTVp" in (rt_ref.meta.get("roi_names") or [])
     assert rt_ref.label.startswith("RTSTRUCT")
     inventory = case.report.to_inventory()
-    rt_row = next(row for row in inventory["dicom"] if row.get("series_kind") == "rtstruct")
+    rt_row = next(
+        row for row in inventory["dicom"] if row.get("series_kind") == "rtstruct"
+    )
     assert "GTVp" in (rt_row.get("roi_names") or [])
-
-    selected = case.dicom_select("which structures are contoured")
-    assert selected["confident"]
-    assert selected["selected"]["series_kind"] == "rtstruct"
 
     preview = case.fetch(rt_ref.id, view="preview")
     assert preview["view"] == "preview"
     assert "image_base64" in preview["data"]
     assert preview["data"]["meta"].get("overlay") is True
     assert preview["data"]["meta"].get("roi_names") == ["GTVp"]
+    assert preview["data"]["meta"]["slice_z_mm"] == -2.0
+    assert preview["data"]["meta"]["window"] == "abdomen"
 
+    ct_ref = next(ref for ref in case.report.dicom if ref.meta.get("Modality") == "CT")
+    assert ct_ref.label == "Neck 2.0 CE"
+    overlaid = case.fetch(ct_ref.id, view="preview", overlay=True, slice_index=0)
+    assert overlaid["data"]["meta"]["overlay_source"] == "rtstruct"
+    assert overlaid["data"]["meta"]["overlay"] is False
+    assert overlaid["data"]["meta"]["overlay_resource_id"] == rt_ref.id
+
+
+def test_pet_window_keeps_uptake_visible_beside_a_hot_voxel():
+    from datactrl.utils.image import to_uint8_rgb
+
+    data = np.full((20, 20), 10.0)
+    data[0, 0] = 10_000.0
+    pet = np.asarray(to_uint8_rgb(data, window="pet"))
+    stretched = np.asarray(to_uint8_rgb(data, window="minmax"))
+    assert int(pet[1, 1, 0]) > 200
+    assert int(stretched[1, 1, 0]) < 5
+
+
+def test_pet_preview_defaults_to_roi_slice_and_overlays(tmp_path: Path):
+    study_uid = generate_uid()
+    pt_uid = generate_uid()
+    rt_uid = generate_uid()
+    frame_uid = generate_uid()
+    pt_dir = tmp_path / "pt"
+    rt_dir = tmp_path / "rt"
+    pt_dir.mkdir()
+    rt_dir.mkdir()
+    sop_at_roi = None
+    for i in range(8):
+        written = _write_tiny_ct(
+            pt_dir / f"img{i}.dcm",
+            series_uid=pt_uid,
+            instance_number=i + 1,
+            series_description="WB_PET",
+            modality="PT",
+            study_uid=study_uid,
+            frame_of_reference_uid=frame_uid,
+            z_mm=-100.0 * i,
+        )
+        if i == 2:
+            sop_at_roi = written
+    _write_tiny_rtstruct(
+        rt_dir / "struct.dcm",
+        series_uid=rt_uid,
+        study_uid=study_uid,
+        frame_of_reference_uid=frame_uid,
+        referenced_series_uid=pt_uid,
+        referenced_sop_uid=sop_at_roi or written,
+        roi_name="GTVp",
+        z_mm=-200.0,
+    )
+
+    case = Case.open(tmp_path)
+    pt_ref = next(ref for ref in case.report.dicom if ref.meta.get("Modality") == "PT")
+    assert "preview" in [spec.name for spec in views_for_series(pt_ref.meta)]
+
+    preview = case.fetch(pt_ref.id, view="preview", overlay=True)
+    meta = preview["data"]["meta"]
+    assert meta["window"] == "pet"
+    assert meta["overlay"] is True
+    assert meta["overlay_source"] == "rtstruct"
+    assert meta["overlay_rois"][0]["name"] == "GTVp"
+    assert meta["slice_z_mm"] == -200.0
+
+
+def test_preview_roi_selects_one_structure_and_its_slice(tmp_path: Path):
+    from datactrl.errors import InvalidFetchOptions
+
+    study_uid = generate_uid()
+    ct_uid = generate_uid()
+    rt_uid = generate_uid()
+    frame_uid = generate_uid()
+    ct_dir = tmp_path / "ct"
+    rt_dir = tmp_path / "rt"
+    ct_dir.mkdir()
+    rt_dir.mkdir()
+    sop = None
+    for i, z in enumerate((-1.0, -5.0)):
+        written = _write_tiny_ct(
+            ct_dir / f"img{i}.dcm",
+            series_uid=ct_uid,
+            instance_number=i + 1,
+            study_uid=study_uid,
+            frame_of_reference_uid=frame_uid,
+            z_mm=z,
+        )
+        if i == 0:
+            sop = written
+    _write_tiny_rtstruct(
+        rt_dir / "struct.dcm",
+        series_uid=rt_uid,
+        study_uid=study_uid,
+        frame_of_reference_uid=frame_uid,
+        referenced_series_uid=ct_uid,
+        referenced_sop_uid=sop or written,
+        rois=[("GTVp", -1.0), ("SpinalCord", -5.0)],
+    )
+
+    case = Case.open(tmp_path)
+    rt_ref = next(
+        ref for ref in case.report.dicom if ref.meta.get("series_kind") == "rtstruct"
+    )
+    ct_ref = next(ref for ref in case.report.dicom if ref.meta.get("Modality") == "CT")
+
+    selected = case.fetch(rt_ref.id, view="preview", roi="spinalcord")
+    meta = selected["data"]["meta"]
+    assert meta["roi"] == "SpinalCord"
+    assert meta["slice_z_mm"] == -5.0
+    assert [row["name"] for row in meta["overlay_rois"]] == ["SpinalCord"]
+
+    default = case.fetch(rt_ref.id, view="preview")
+    assert default["data"]["meta"].get("roi") is None
+    assert default["data"]["meta"]["slice_z_mm"] == -1.0
+    assert [row["name"] for row in default["data"]["meta"]["overlay_rois"]] == ["GTVp"]
+
+    on_ct = case.fetch(
+        ct_ref.id,
+        view="preview",
+        overlay=True,
+        slice_index=selected["bounds"]["slice_index"],
+        roi="SpinalCord",
+    )
+    assert [row["name"] for row in on_ct["data"]["meta"]["overlay_rois"]] == [
+        "SpinalCord"
+    ]
+
+    with pytest.raises(InvalidFetchOptions, match="Unknown ROI"):
+        case.fetch(rt_ref.id, view="preview", roi="Brainstem")
+    with pytest.raises(InvalidFetchOptions, match="overlay=true"):
+        case.fetch(ct_ref.id, view="preview", roi="GTVp")

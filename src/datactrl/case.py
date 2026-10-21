@@ -333,19 +333,6 @@ class Case:
         self._ensure_modality(Modality.DICOM)
         return self._dicom.groups(query)
 
-    def dicom_select(
-        self,
-        query: str,
-        *,
-        limit: int = 5,
-        include_localizers: bool = False,
-    ) -> dict[str, Any]:
-        """Rank DICOM series for a query using tags and geometry (no pixels)."""
-        self._ensure_modality(Modality.DICOM)
-        return self._dicom.select(
-            query, limit=limit, include_localizers=include_localizers
-        )
-
     def _require(self, resource_id: str) -> ResourceRef:
         """Look up ``resource_id`` in the index or raise ResourceNotFound."""
         _ = self.report  # ensure index exists
