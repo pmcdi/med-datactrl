@@ -14,7 +14,11 @@ from datactrl.adapters.structured import StructuredAdapter
 from datactrl.discovery.classify import classify_files
 from datactrl.discovery.walk import iter_files
 from datactrl.errors import ModalityUnavailable, ResourceNotFound
-from datactrl.limits import DEFAULT_NOTE_CHARS, DEFAULT_TABLE_LIMIT
+from datactrl.limits import (
+    DEFAULT_NOTE_CHARS,
+    DEFAULT_NOTE_SEARCH_HITS,
+    DEFAULT_TABLE_LIMIT,
+)
 from datactrl.types import (
     DescribeResult,
     DiscoverReport,
@@ -282,6 +286,17 @@ class Case:
         chars = DEFAULT_NOTE_PREVIEW_CHARS if preview else max_chars
         return self.fetch(note_id, view="text", max_chars=chars)
 
+    def notes_search(
+        self, query: str, *, limit: int = DEFAULT_NOTE_SEARCH_HITS
+    ) -> dict[str, Any]:
+        """Lexical BM25 search over note sections with char-offset snippets."""
+        self._ensure_modality(Modality.NOTE)
+        return self._notes.search(query, limit=limit)
+
+    def notes_total_chars(self) -> int:
+        """Total extracted characters across all notes (0 when none)."""
+        return self._notes.total_chars()
+
     def fetch_dicom_metadata(self, series_id: str) -> dict[str, Any]:
         """Fetch DICOM series metadata and structural references."""
         self._ensure_modality(Modality.DICOM)
@@ -317,19 +332,6 @@ class Case:
         """Return linked DICOM modality groups (e.g. ``CT,SEG``)."""
         self._ensure_modality(Modality.DICOM)
         return self._dicom.groups(query)
-
-    def dicom_select(
-        self,
-        query: str,
-        *,
-        limit: int = 5,
-        include_localizers: bool = False,
-    ) -> dict[str, Any]:
-        """Rank DICOM series for a query using tags and geometry (no pixels)."""
-        self._ensure_modality(Modality.DICOM)
-        return self._dicom.select(
-            query, limit=limit, include_localizers=include_localizers
-        )
 
     def _require(self, resource_id: str) -> ResourceRef:
         """Look up ``resource_id`` in the index or raise ResourceNotFound."""

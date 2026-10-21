@@ -94,12 +94,52 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "overlay": {
                 "type": "boolean",
                 "description": (
-                    "For CT/MR preview, draw linked RTSTRUCT contours on the slice. "
-                    "RTSTRUCT preview always overlays on the referenced image series."
+                    "For CT/MR/PT preview, draw linked RTSTRUCT contours on the slice. "
+                    "RTSTRUCT preview always overlays on the referenced image series, "
+                    "including PET."
                 ),
+            },
+            "roi": {
+                "type": "string",
+                "description": (
+                    "RTSTRUCT/SEG structure name to draw (case-insensitive; see "
+                    "roi_names). On an RTSTRUCT or SEG preview the slice follows "
+                    "that structure unless slice_index is set. On CT/MR/PT, also "
+                    "set overlay=true."
+                ),
+            },
+            "start": {
+                "type": "integer",
+                "description": "Note span view: start character offset",
+            },
+            "end": {
+                "type": "integer",
+                "description": "Note span view: end character offset (exclusive)",
+            },
+            "context_chars": {
+                "type": "integer",
+                "description": "Note span view: characters of context on each side",
+            },
+            "page_index": {
+                "type": "integer",
+                "description": "PDF note page view: zero-based page index",
             },
         },
         ["resource_id"],
+    ),
+    _tool(
+        "notes_search",
+        (
+            "Lexical (BM25) search over clinical note sections. Returns note ids, "
+            "section names, character offsets and snippets; use fetch(view='span') "
+            "to read the exact text."
+        ),
+        {
+            **_ROOT_OR_CASE,
+            "query": {"type": "string", "description": "Keywords or a question"},
+            "limit": {"type": "integer", "description": "Max hits (default 8)"},
+        },
+        ["query"],
     ),
     _tool(
         "links",
@@ -146,32 +186,6 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             },
         },
         [],
-    ),
-    _tool(
-        "dicom_select",
-        (
-            "Rank DICOM series for a clinical query using series description, "
-            "protocol, image type, geometry, and RTSTRUCT ROI names. "
-            "Does not return pixels. Contour/GTV questions select the RTSTRUCT; "
-            "representative CT/MR slice questions select an acquisition. "
-            "Use the selected resource_id with fetch(preview) or analyze_imaging."
-        ),
-        {
-            **_ROOT_OR_CASE,
-            "query": {
-                "type": "string",
-                "description": "Clinical question or anatomy/modality to find",
-            },
-            "limit": {
-                "type": "integer",
-                "description": "Max ranked candidates (default 5)",
-            },
-            "include_localizers": {
-                "type": "boolean",
-                "description": "Include scout/localizer series (default false)",
-            },
-        },
-        ["query"],
     ),
 ]
 
@@ -284,16 +298,15 @@ def dicom_groups(
     return _case_from_args(root=root, case_id=case_id).dicom_groups(query)
 
 
-def dicom_select(
+def notes_search(
     query: str,
     root: str | None = None,
     case_id: str | None = None,
-    limit: int = 5,
-    include_localizers: bool = False,
+    limit: int = 8,
 ) -> dict[str, Any]:
-    """Rank DICOM series for a query in an open case session."""
-    return _case_from_args(root=root, case_id=case_id).dicom_select(
-        query, limit=limit, include_localizers=include_localizers
+    """Search note sections in an open case session."""
+    return _case_from_args(root=root, case_id=case_id).notes_search(
+        query, limit=int(limit)
     )
 
 
@@ -305,7 +318,7 @@ _HANDLERS: dict[str, Callable[..., Any]] = {
     "assert_link": assert_link,
     "dicom_tree": dicom_tree,
     "dicom_groups": dicom_groups,
-    "dicom_select": dicom_select,
+    "notes_search": notes_search,
 }
 
 

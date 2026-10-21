@@ -177,7 +177,7 @@ def _schema_and_count(path: Path, fmt: str) -> tuple[list[str], int]:
             row_count = sum(1 for _ in reader)
         return columns, row_count
     if fmt == "jsonl":
-        columns: list[str] = []
+        columns = []
         row_count = 0
         with path.open(encoding="utf-8", errors="replace") as handle:
             for line in handle:

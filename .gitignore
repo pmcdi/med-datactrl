@@ -11,6 +11,9 @@ data
 helping_documents
 benchmark/results
 
+# Local checkout of JoshuaSiraj/MedDataOS. That tree has its own git repo.
+new_frontend/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -162,3 +165,5 @@ cython_debug/
 # OS
 .DS_Store
 Thumbs.db
+
+MedDataOS/
