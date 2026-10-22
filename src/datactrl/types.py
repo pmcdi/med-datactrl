@@ -161,6 +161,40 @@ class DiscoverReport:
         """Clinical note resources."""
         return [ref for ref in self.resources if ref.modality == Modality.NOTE]
 
+    def to_inventory(self) -> dict[str, Any]:
+        """Compact inventory for LLM tools (no duplicated lists or heavy meta)."""
+
+        def _slim(ref: ResourceRef) -> dict[str, Any]:
+            payload = {
+                "id": ref.id,
+                "modality": ref.modality.value,
+                "label": ref.label,
+                "path": ref.path,
+            }
+            if ref.modality == Modality.DICOM:
+                payload.update(_inventory_dicom_fields(ref))
+            elif ref.modality == Modality.NOTE:
+                for key in ("note_date", "note_type", "text_quality"):
+                    if ref.meta.get(key) is not None:
+                        payload[key] = ref.meta[key]
+            return payload
+
+        return {
+            "case_id": self.case_id,
+            "root": str(self.root),
+            "counts": {
+                "dicom": len(self.dicom),
+                "structured": len(self.structured),
+                "notes": len(self.notes),
+                "unknown": len(self.unknown),
+                "total": len(self.resources),
+            },
+            "notes": [_slim(ref) for ref in self.notes],
+            "structured": [_slim(ref) for ref in self.structured],
+            "dicom": [_slim(ref) for ref in self.dicom],
+            "unknown": list(self.unknown),
+        }
+
     def to_dict(self) -> dict[str, Any]:
         """Serialize the discovery report for API responses."""
         return {
@@ -179,6 +213,40 @@ class DiscoverReport:
             "notes": [ref.to_dict() for ref in self.notes],
             "unknown": list(self.unknown),
         }
+
+
+def _inventory_dicom_fields(ref: ResourceRef) -> dict[str, Any]:
+    """Compact DICOM tag fields for LLM inventory rows."""
+    meta = ref.meta
+    payload: dict[str, Any] = {}
+    modality = meta.get("Modality")
+    if modality:
+        payload["dicom_modality"] = modality
+    kind = meta.get("series_kind")
+    if kind:
+        payload["series_kind"] = kind
+    names = meta.get("roi_names")
+    if names:
+        payload["roi_names"] = list(names)[:20]
+    count = meta.get("instance_count")
+    if count is not None:
+        try:
+            payload["instance_count"] = int(count)
+        except (TypeError, ValueError):
+            pass
+    for key in (
+        "SeriesDescription",
+        "ProtocolName",
+        "StudyDescription",
+        "BodyPartExamined",
+    ):
+        value = meta.get(key)
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text and text.lower() not in {"nan", "none"}:
+            payload[key] = text
+    return payload
 
 
 def make_resource_id(modality: Modality, key: str) -> str:

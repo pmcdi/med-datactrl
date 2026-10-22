@@ -144,8 +144,12 @@ def test_layer0_kits_preview_slice_index():
 
     zero = case.fetch(ct.id, view="preview", slice_index=0)
     assert zero["bounds"]["slice_index"] == 0
-    # Different slice should usually differ; at minimum indices are honored.
-    assert mid_idx == n_slices // 2
+    # Explicit index is honored. Default may be middle (short FOV) or
+    # mm-from-superior (long FOV); both must be in range.
+    assert 0 <= mid_idx < n_slices
+    z_span = ct.meta.get("z_span_mm")
+    if z_span is None or float(z_span) < 500:
+        assert mid_idx == n_slices // 2
 
     with pytest.raises(InvalidFetchOptions):
         case.fetch(ct.id, view="preview", slice_index=n_slices + 5)

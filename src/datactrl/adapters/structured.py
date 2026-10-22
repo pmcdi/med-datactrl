@@ -77,10 +77,9 @@ class StructuredAdapter:
     def describe(self, resource_id: str) -> DescribeResult:
         """Return column names and row count for one table."""
         record = self._require(resource_id)
-        rows = _load_rows(record.path, record.format)
-        columns = (
-            list(rows[0].keys()) if rows else list(record.ref.meta.get("columns", []))
-        )
+        columns, row_count = _schema_and_count(record.path, record.format)
+        if not columns:
+            columns = list(record.ref.meta.get("columns", []))
         return DescribeResult(
             id=resource_id,
             modality=Modality.STRUCTURED,
@@ -91,7 +90,7 @@ class StructuredAdapter:
             summary={
                 "format": record.format,
                 "columns": columns,
-                "row_count": len(rows),
+                "row_count": row_count,
             },
         )
 
@@ -149,8 +148,51 @@ class StructuredAdapter:
 
 def _sample_columns(path: Path, fmt: str) -> list[str]:
     """Read column names from the first row of a table file."""
+    if fmt in {"csv", "tsv"}:
+        delimiter = "," if fmt == "csv" else "\t"
+        with path.open(newline="", encoding="utf-8", errors="replace") as handle:
+            reader = csv.DictReader(handle, delimiter=delimiter)
+            return list(reader.fieldnames or [])
+    if fmt == "jsonl":
+        with path.open(encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                row = json.loads(line)
+                if isinstance(row, dict):
+                    return list(row.keys())
+        return []
     rows = _load_rows(path, fmt, max_rows=1)
     return list(rows[0].keys()) if rows else []
+
+
+def _schema_and_count(path: Path, fmt: str) -> tuple[list[str], int]:
+    """Return (columns, row_count) without materializing every CSV/JSONL row."""
+    if fmt in {"csv", "tsv"}:
+        delimiter = "," if fmt == "csv" else "\t"
+        with path.open(newline="", encoding="utf-8", errors="replace") as handle:
+            reader = csv.DictReader(handle, delimiter=delimiter)
+            columns = list(reader.fieldnames or [])
+            row_count = sum(1 for _ in reader)
+        return columns, row_count
+    if fmt == "jsonl":
+        columns = []
+        row_count = 0
+        with path.open(encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                row = json.loads(line)
+                if isinstance(row, dict):
+                    if not columns:
+                        columns = list(row.keys())
+                    row_count += 1
+        return columns, row_count
+    rows = _load_rows(path, fmt)
+    columns = list(rows[0].keys()) if rows else []
+    return columns, len(rows)
 
 
 def _load_rows(

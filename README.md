@@ -11,7 +11,8 @@ from datactrl import Case
 
 case = Case.open("/path/to/case")
 report = case.discover()
-print(report.to_dict())  # case_id, resources, counts, unknown
+print(report.to_inventory())  # compact ids/labels/counts for LLM tools
+print(report.to_dict())       # full resource list
 
 # Progressive disclosure: describe → fetch(view=...)
 for ref in report.resources:
@@ -21,13 +22,18 @@ for ref in report.resources:
 for table in report.structured:
     print(case.fetch(table.id, view="rows", limit=10))
 
-# Notes
+# Notes (meta: note_date + confidence/flags, note_type, text_quality)
 for note in report.notes:
     print(case.fetch(note.id, view="text", max_chars=2000))
+    print(case.fetch(note.id, view="sections"))                     # headers + char offsets
+    print(case.fetch(note.id, view="span", start=0, end=200, context_chars=100))
+print(case.notes_search("portal vein thrombosis", limit=8))         # BM25 hits with offsets
+# PDF notes: view="page", page_index=N returns one page (pdf_base64 + text + quality)
 
-# DICOM metadata / preview (any slice_index)
+# DICOM: pick a series from inventory or dicom_tree / dicom_groups, then describe → fetch
 for series in report.dicom:
-    print(case.describe(series.id)["links"])  # structural SEG↔CT etc.
+    print(case.describe(series.id)["views"])  # preview omitted for RTPLAN/RTDOSE etc.
+    print(case.describe(series.id)["links"])
 print(case.fetch(report.dicom[0].id, view="metadata"))
 print(case.fetch(report.dicom[0].id, view="preview", slice_index=0))
 print(case.dicom_groups("CT,SEG"))
@@ -86,7 +92,8 @@ dispatch("links", {"root": "/path/to/case", "resource_id": "note:abc123"})
 from datactrl.tools import TOOL_DEFINITIONS, dispatch
 
 print(dispatch("discover", {"root": "/path/to/case"}))
-# Then: describe / fetch / links / assert_link / dicom_tree / dicom_groups
+# compact inventory; then: describe / fetch / notes_search / links / assert_link / dicom_tree / dicom_groups
+# Gemini-style declarations: gemini_function_declarations()
 ```
 
 ## Install

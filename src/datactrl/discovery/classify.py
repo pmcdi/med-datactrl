@@ -10,6 +10,28 @@ from datactrl.types import Modality
 STRUCTURED_EXTENSIONS = {".csv", ".tsv", ".parquet"}
 NOTE_EXTENSIONS = {".txt", ".md", ".pdf"}
 JSON_EXTENSIONS = {".json", ".jsonl"}
+# Skip DICOM magic/pydicom sniff for known non-DICOM binaries (e.g. WSI).
+SKIP_DICOM_SNIFF_EXTENSIONS = {
+    ".svs",
+    ".tif",
+    ".tiff",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".mp4",
+    ".wav",
+    ".svg",
+    ".bin",
+    ".npy",
+    ".npz",
+    ".h5",
+    ".hdf5",
+    ".nii",
+    ".zip",
+    ".gz",
+}
 
 
 def classify_file(path: Path) -> Modality | None:
@@ -27,7 +49,13 @@ def classify_file(path: Path) -> Modality | None:
             return Modality.STRUCTURED
         return Modality.NOTE
 
-    if suffix == ".dcm" or looks_like_dicom(path):
+    if suffix == ".dcm":
+        return Modality.DICOM
+
+    if suffix in SKIP_DICOM_SNIFF_EXTENSIONS:
+        return None
+
+    if looks_like_dicom(path):
         return Modality.DICOM
 
     return None

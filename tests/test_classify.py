@@ -15,6 +15,15 @@ def test_classify_extensions():
     assert classify_file(FIXTURE / "junk" / "readme.bin") is None
 
 
+def test_classify_skips_non_dicom_binaries(tmp_path: Path):
+    svs = tmp_path / "slide.svs"
+    svs.write_bytes(b"not-dicom")
+    png = tmp_path / "preview.png"
+    png.write_bytes(b"\x89PNG")
+    assert classify_file(svs) is None
+    assert classify_file(png) is None
+
+
 def test_walk_skips_hidden(tmp_path: Path):
     visible = tmp_path / "a.txt"
     visible.write_text("hi")
