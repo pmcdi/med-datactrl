@@ -66,7 +66,10 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     ),
     _tool(
         "fetch",
-        "Fetch a bounded view of a resource (e.g. text, rows, metadata, preview).",
+        (
+            "Fetch a bounded view of a resource "
+            "(e.g. text, rows, metadata, preview, volume)."
+        ),
         {
             **_ROOT_OR_CASE,
             "resource_id": {"type": "string"},
@@ -89,6 +92,14 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
                 "type": "string",
                 "description": (
                     "CT display window: minmax, abdomen, liver, lung, bone, brain"
+                ),
+            },
+            "spacing": {
+                "type": "array",
+                "items": {"type": "number"},
+                "description": (
+                    "DICOM volume spacing in mm (x, y, z). "
+                    "Default 0,0,0 keeps the native grid."
                 ),
             },
             "overlay": {

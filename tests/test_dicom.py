@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 from pathlib import Path
 
 import numpy as np
@@ -14,7 +15,11 @@ from datactrl.utils.dicom_meta import (
     infer_regions,
     suggested_slice_index,
 )
-from datactrl.utils.dicom_views import preview_supported, views_for_series
+from datactrl.utils.dicom_views import (
+    preview_supported,
+    views_for_series,
+    volume_supported,
+)
 
 pydicom = pytest.importorskip("pydicom")
 from pydicom.dataset import Dataset, FileDataset
@@ -51,11 +56,18 @@ def test_preview_views_exclude_rt_objects():
         for s in views_for_series({"Modality": "RTPLAN", "series_kind": "rtplan"})
     ]
     assert rtplan_views == ["metadata"]
+    assert not volume_supported({"Modality": "RTPLAN", "series_kind": "rtplan"})
     ct_views = [
         s.name
         for s in views_for_series({"Modality": "CT", "series_kind": "acquisition"})
     ]
     assert "preview" in ct_views
+    assert "volume" in ct_views
+    dose_views = [
+        s.name
+        for s in views_for_series({"Modality": "RTDOSE", "series_kind": "rtdose"})
+    ]
+    assert dose_views == ["metadata", "volume"]
     rt_views = [
         s.name
         for s in views_for_series({"Modality": "RTSTRUCT", "series_kind": "rtstruct"})
@@ -340,6 +352,60 @@ def test_dicom_discover_and_metadata(tmp_path: Path):
     assert "image_base64" in preview["data"]
     assert preview["bounds"]["n_slices"] == 2
 
+    assert "volume" in described["views"]
+    volume = case.fetch(series.id, view="volume")
+    assert volume["view"] == "volume"
+    assert volume["data"]["encoding"] == "nii.gz"
+    raw = base64.b64decode(volume["data"]["volume_base64"])
+    assert raw[:2] == b"\x1f\x8b"
+    assert volume["bounds"]["truncated"] is False
+    assert volume["data"]["meta"]["size"][0] == 8
+    resampled = case.fetch(series.id, view="volume", spacing=[2, 2, 2])
+    assert resampled["data"]["meta"]["spacing"][0] == pytest.approx(2.0)
+    assert volume["data"]["meta"]["n_voxels"] > resampled["data"]["meta"]["n_voxels"]
+
+
+def test_rtdose_from_dicom_applies_grid_scaling(tmp_path: Path):
+    """Dose.from_dicom scales pixels by DoseGridScaling."""
+    from datactrl.utils.dicom_volume import load_scalar_volume
+
+    series_uid = generate_uid()
+    path = tmp_path / "dose.dcm"
+    file_meta = Dataset()
+    file_meta.MediaStorageSOPClassUID = "1.2.840.10008.5.1.4.1.1.481.2"
+    file_meta.MediaStorageSOPInstanceUID = generate_uid()
+    file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
+    file_meta.ImplementationClassUID = generate_uid()
+    ds = FileDataset(str(path), {}, file_meta=file_meta, preamble=b"\0" * 128)
+    ds.SOPClassUID = file_meta.MediaStorageSOPClassUID
+    ds.SOPInstanceUID = file_meta.MediaStorageSOPInstanceUID
+    ds.PatientID = "TEST"
+    ds.StudyInstanceUID = generate_uid()
+    ds.SeriesInstanceUID = series_uid
+    ds.Modality = "RTDOSE"
+    ds.InstanceNumber = 1
+    ds.ImagePositionPatient = [0.0, 0.0, 0.0]
+    ds.ImageOrientationPatient = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+    ds.PixelSpacing = [1.0, 1.0]
+    ds.SliceThickness = 1.0
+    ds.Rows = 4
+    ds.Columns = 4
+    ds.BitsAllocated = 16
+    ds.BitsStored = 16
+    ds.HighBit = 15
+    ds.PixelRepresentation = 0
+    ds.SamplesPerPixel = 1
+    ds.PhotometricInterpretation = "MONOCHROME2"
+    ds.DoseGridScaling = 0.1
+    ds.DoseUnits = "GY"
+    ds.DoseType = "PHYSICAL"
+    ds.PixelData = np.ones(16, dtype=np.uint16).tobytes()
+    ds.save_as(path, enforce_file_format=True)
+
+    dose = load_scalar_volume("RTDOSE", tmp_path, series_uid, [str(path)])
+    array, _geometry = dose.to_numpy()
+    assert float(np.asarray(array).flat[0]) == pytest.approx(0.1)
+
 
 def test_series_kind_uses_header_image_type(tmp_path: Path):
     series_uid = generate_uid()
@@ -476,6 +542,10 @@ def test_rtstruct_discover_and_preview(tmp_path: Path):
 
     ct_ref = next(ref for ref in case.report.dicom if ref.meta.get("Modality") == "CT")
     assert ct_ref.label == "Neck 2.0 CE"
+    rt_volume = case.fetch(rt_ref.id, view="volume", spacing=[1, 1, 1])
+    assert rt_volume["data"]["encoding"] == "nii.gz"
+    assert rt_volume["data"]["meta"]["referenced_series_id"] == ct_ref.id
+    assert "GTVp" in rt_volume["data"]["meta"]["labels"].values()
     overlaid = case.fetch(ct_ref.id, view="preview", overlay=True, slice_index=0)
     assert overlaid["data"]["meta"]["overlay_source"] == "rtstruct"
     assert overlaid["data"]["meta"]["overlay"] is False
