@@ -75,7 +75,7 @@ def resample_volume(image: MedImage, spacing: tuple[float, float, float]) -> Med
 
     Anti-alias is off: the Gaussian needs four voxels on every axis, and short
     series fail that check. The result stays the same imagetools class so mask
-    rasterization can read its geometry.
+    voxelization can read its geometry.
     """
     resampled = Resample(spacing, interpolation="linear", anti_alias=False)(image)
     metadata = dict(getattr(image, "metadata", {}) or {})
@@ -128,7 +128,7 @@ def mask_to_label(
     reference: MedImage,
     roi_names: list[str],
 ) -> tuple[sitk.Image, dict[str, str]]:
-    """Rasterize every ROI onto ``reference`` and collapse to one label image."""
+    """Voxelize every ROI onto ``reference`` and collapse to one label image."""
     match_map = {name: [f"^{re.escape(name)}$"] for name in roi_names} or {
         "ROI": [".*"]
     }
@@ -141,7 +141,7 @@ def mask_to_label(
     vector = mask.get_vector_mask(reference, matcher)
     if vector is None:
         raise InvalidFetchOptions(
-            "No ROIs could be rasterized onto the referenced series"
+            "No ROIs could be voxelized onto the referenced series"
         )
     try:
         label = vector.to_label_image()

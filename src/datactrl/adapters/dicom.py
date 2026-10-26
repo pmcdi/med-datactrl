@@ -225,7 +225,7 @@ class DicomAdapter:
         kind = str(ref.meta.get("series_kind") or "")
         extra: dict[str, Any] = {}
         if kind in _MASK_KINDS or modality == "SEG":
-            image, extra = self._rasterized_mask(ref, spacing)
+            image, extra = self._voxelized_mask(ref, spacing)
         else:
             image = self._resampled(self._scalar_volume(ref), spacing)
         data = volume_payload(image)
@@ -274,10 +274,10 @@ class DicomAdapter:
             return image
         return resample_volume(image, spacing)
 
-    def _rasterized_mask(
+    def _voxelized_mask(
         self, ref: ResourceRef, spacing: tuple[float, float, float] | None
     ) -> tuple[Any, dict[str, Any]]:
-        """Burn RTSTRUCT/SEG onto the referenced image grid."""
+        """Voxelize RTSTRUCT/SEG onto the referenced image grid."""
         modality = str(ref.meta.get("Modality") or "").upper() or "RTSTRUCT"
         image_ref = self._referenced_image_series(ref)
         if image_ref is None:
@@ -302,7 +302,7 @@ class DicomAdapter:
         except InvalidFetchOptions:
             raise
         except Exception as exc:
-            raise InvalidFetchOptions(f"Could not rasterize {modality}: {exc}") from exc
+            raise InvalidFetchOptions(f"Could not voxelize {modality}: {exc}") from exc
         return label, {
             "referenced_series_id": image_ref.id,
             "labels": labels,
