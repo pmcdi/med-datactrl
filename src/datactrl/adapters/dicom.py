@@ -30,6 +30,7 @@ from datactrl.utils.dicom_crawl import (
     enrich_series_meta,
     load_series_scan,
     ordered_series_files,
+    resolve_series_directory,
     scan_slice,
     scan_slice_count,
     scan_slice_z_mm,
@@ -37,6 +38,14 @@ from datactrl.utils.dicom_crawl import (
 )
 from datactrl.utils.dicom_meta import merged_series_metadata, slice_index_for_z
 from datactrl.utils.dicom_views import adapter_view_catalog, views_for_series
+from datactrl.utils.dicom_volume import (
+    load_scalar_volume,
+    mask_to_label,
+    resample_labels,
+    resample_volume,
+    volume_payload,
+    volume_spacing,
+)
 from datactrl.utils.rtstruct import (
     load_structure_set,
     overlay_rtstruct,
@@ -171,13 +180,15 @@ class DicomAdapter:
     def fetch(
         self, resource_id: str, view: str | None = None, **opts: Any
     ) -> FetchResult:
-        """Fetch ``metadata`` or a single-slice ``preview`` for a series."""
+        """Fetch ``metadata``, a slice ``preview``, or a 3D ``volume``."""
         ref = self._require_ref(resource_id)
         resolved_view, merged = resolve_fetch_options(
             views_for_series(ref.meta), view, opts, default_view="metadata"
         )
         if resolved_view == "preview":
             return self._fetch_preview(resource_id, merged)
+        if resolved_view == "volume":
+            return self._fetch_volume(resource_id, merged)
         return self._fetch_metadata(resource_id)
 
     def _fetch_metadata(self, resource_id: str) -> FetchResult:
@@ -201,6 +212,101 @@ class DicomAdapter:
                 "adapter_version": self.version,
             },
         )
+
+    # -----------------------------------------------------------------------
+    # Volume
+    # -----------------------------------------------------------------------
+
+    def _fetch_volume(self, resource_id: str, opts: dict[str, Any]) -> FetchResult:
+        """Return one NIfTI for an imagetools-supported series."""
+        ref = self._require_ref(resource_id)
+        spacing = volume_spacing(opts.get("spacing"))
+        modality = str(ref.meta.get("Modality") or "").upper()
+        kind = str(ref.meta.get("series_kind") or "")
+        extra: dict[str, Any] = {}
+        if kind in _MASK_KINDS or modality == "SEG":
+            image, extra = self._rasterized_mask(ref, spacing)
+        else:
+            image = self._resampled(self._scalar_volume(ref), spacing)
+        data = volume_payload(image)
+        data["meta"].update(extra)
+        n_voxels = data["meta"]["n_voxels"]
+        return FetchResult(
+            id=resource_id,
+            modality=Modality.DICOM,
+            view="volume",
+            data=data,
+            bounds={
+                "n_voxels": n_voxels,
+                "nbytes": data["meta"]["nbytes"],
+                "spacing": data["meta"]["spacing"],
+                "truncated": False,
+            },
+            provenance={
+                "SeriesInstanceUID": _series_uid(resource_id),
+                "path": ref.path,
+                "adapter": "dicom",
+                "adapter_version": self.version,
+            },
+        )
+
+    def _scalar_volume(self, ref: ResourceRef) -> Any:
+        """Load CT/MR/PT/RTDOSE on its native grid."""
+        series_uid = _series_uid(ref.id)
+        crawler = self._require_crawler()
+        try:
+            directory = resolve_series_directory(crawler, series_uid)
+            files = ordered_series_files(crawler, series_uid)
+        except ValueError as exc:
+            raise InvalidFetchOptions(str(exc)) from exc
+        if not files:
+            raise InvalidFetchOptions(f"No instances for series {series_uid!r}")
+        return load_scalar_volume(
+            str(ref.meta.get("Modality") or "").upper(),
+            directory,
+            series_uid,
+            files,
+        )
+
+    def _resampled(self, image: Any, spacing: tuple[float, float, float] | None) -> Any:
+        """Resample when ``spacing`` is set. ``None`` keeps the native grid."""
+        if spacing is None:
+            return image
+        return resample_volume(image, spacing)
+
+    def _rasterized_mask(
+        self, ref: ResourceRef, spacing: tuple[float, float, float] | None
+    ) -> tuple[Any, dict[str, Any]]:
+        """Burn RTSTRUCT/SEG onto the referenced image grid."""
+        modality = str(ref.meta.get("Modality") or "").upper() or "RTSTRUCT"
+        image_ref = self._referenced_image_series(ref)
+        if image_ref is None:
+            raise InvalidFetchOptions(
+                f"{modality} has no referenced CT/MR/PT series in this case"
+            )
+        native = self._scalar_volume(image_ref)
+        is_seg = str(ref.meta.get("series_kind") or "") == "seg" or modality == "SEG"
+        try:
+            mask = self._mask(ref)
+            names = _roi_names(mask, ref)
+            # SEG frames are bitmaps on the native grid. RTSTRUCT contours are
+            # drawn in patient space, so they can be built on the resampled CT.
+            if is_seg:
+                label, labels = mask_to_label(mask, native, names)
+                if spacing is not None:
+                    label = resample_labels(label, spacing)
+            else:
+                label, labels = mask_to_label(
+                    mask, self._resampled(native, spacing), names
+                )
+        except InvalidFetchOptions:
+            raise
+        except Exception as exc:
+            raise InvalidFetchOptions(f"Could not rasterize {modality}: {exc}") from exc
+        return label, {
+            "referenced_series_id": image_ref.id,
+            "labels": labels,
+        }
 
     # -----------------------------------------------------------------------
     # Preview

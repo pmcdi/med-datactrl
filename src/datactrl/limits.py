@@ -18,3 +18,8 @@ DEFAULT_JSON_SNIFF_BYTES = 64_000
 
 # DICOM preview: max edge length after optional downscale (pixels).
 MAX_DICOM_PREVIEW_EDGE = 1024
+
+# DICOM volume: reject above these instead of cropping the grid.
+# 512×512×128 voxels. 64 MB covers that grid as int16 before gzip.
+MAX_VOLUME_VOXELS = 33_554_432
+MAX_VOLUME_BYTES = 64_000_000

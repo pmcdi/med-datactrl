@@ -17,6 +17,19 @@ _METADATA_VIEW = ViewSpec(
 _IMAGE_MODALITIES = frozenset({"CT", "MR", "PT", "NM", "US"})
 _NO_PREVIEW_KINDS = frozenset({"rtplan", "rtdose"})
 _NO_PREVIEW_MODALITIES = frozenset({"RTPLAN", "RTDOSE", "SR", "PR", "KO"})
+_VOLUME_MODALITIES = frozenset({"CT", "MR", "PT", "RTDOSE", "RTSTRUCT", "SEG"})
+_VOLUME_KINDS = frozenset({"rtstruct", "seg", "rtdose"})
+
+_VOLUME_VIEW = ViewSpec(
+    name="volume",
+    description=(
+        "Gzip NIfTI of this series. "
+        "spacing is mm per axis; the default 0,0,0 keeps the native grid. "
+        "RTSTRUCT and SEG are one label volume on the referenced CT/MR/PT."
+    ),
+    defaults={"spacing": [0.0, 0.0, 0.0]},
+    max={},
+)
 
 
 def adapter_view_catalog() -> Sequence[ViewSpec]:
@@ -32,6 +45,7 @@ def adapter_view_catalog() -> Sequence[ViewSpec]:
             defaults={},
             max={},
         ),
+        _VOLUME_VIEW,
     )
 
 
@@ -123,9 +137,19 @@ def _default_window(modality: str) -> str:
     return "minmax"
 
 
+def volume_supported(meta: Mapping[str, Any]) -> bool:
+    """Whether imagetools can load this series as a 3D volume."""
+    kind = str(meta.get("series_kind") or "")
+    if kind in _VOLUME_KINDS:
+        return True
+    return str(meta.get("Modality") or "").upper() in _VOLUME_MODALITIES
+
+
 def views_for_series(meta: Mapping[str, Any]) -> Sequence[ViewSpec]:
-    """Metadata always; preview only when supported."""
+    """Metadata always; preview and volume when this series supports them."""
     specs: list[ViewSpec] = [_METADATA_VIEW]
     if preview_supported(meta):
         specs.append(preview_view_spec(meta))
+    if volume_supported(meta):
+        specs.append(_VOLUME_VIEW)
     return specs
