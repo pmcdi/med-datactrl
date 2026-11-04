@@ -225,7 +225,7 @@ class DicomAdapter:
         kind = str(ref.meta.get("series_kind") or "")
         extra: dict[str, Any] = {}
         if kind in _MASK_KINDS or modality == "SEG":
-            image, extra = self._voxelized_mask(ref, spacing)
+            image, extra = self._voxelized_mask(ref, spacing, roi=_raw_roi(opts))
         else:
             image = self._resampled(self._scalar_volume(ref), spacing)
         data = volume_payload(image)
@@ -275,9 +275,16 @@ class DicomAdapter:
         return resample_volume(image, spacing)
 
     def _voxelized_mask(
-        self, ref: ResourceRef, spacing: tuple[float, float, float] | None
+        self,
+        ref: ResourceRef,
+        spacing: tuple[float, float, float] | None,
+        roi: str | None = None,
     ) -> tuple[Any, dict[str, Any]]:
-        """Voxelize RTSTRUCT/SEG onto the referenced image grid."""
+        """Voxelize RTSTRUCT/SEG onto the referenced image grid.
+
+        Pass ``roi`` to extract one structure (imagetools single-channel mask).
+        Without it, all ROIs are collapsed; nested structures win over EXTERNAL.
+        """
         modality = str(ref.meta.get("Modality") or "").upper() or "RTSTRUCT"
         image_ref = self._referenced_image_series(ref)
         if image_ref is None:
@@ -285,28 +292,29 @@ class DicomAdapter:
                 f"{modality} has no referenced CT/MR/PT series in this case"
             )
         native = self._scalar_volume(image_ref)
-        is_seg = str(ref.meta.get("series_kind") or "") == "seg" or modality == "SEG"
         try:
             mask = self._mask(ref)
             names = _roi_names(mask, ref)
-            # SEG frames are bitmaps on the native grid. RTSTRUCT contours are
-            # drawn in patient space, so they can be built on the resampled CT.
-            if is_seg:
-                label, labels = mask_to_label(mask, native, names)
-                if spacing is not None:
-                    label = resample_labels(label, spacing)
-            else:
-                label, labels = mask_to_label(
-                    mask, self._resampled(native, spacing), names
-                )
+            matched = _match_roi({"roi": roi} if roi else {}, names)
+            use_names = [matched] if matched else names
+            # Always voxelize on the native image grid. imgtools caches ROI
+            # bitmaps from the first reference size; building on a resampled
+            # CT after a native attempt raises a broadcast error. Coarser
+            # spacing is applied afterward with nearest-neighbor resampling.
+            label, labels = mask_to_label(mask, native, use_names)
+            if spacing is not None:
+                label = resample_labels(label, spacing)
         except InvalidFetchOptions:
             raise
         except Exception as exc:
             raise InvalidFetchOptions(f"Could not voxelize {modality}: {exc}") from exc
-        return label, {
+        extra: dict[str, Any] = {
             "referenced_series_id": image_ref.id,
             "labels": labels,
         }
+        if matched:
+            extra["roi"] = matched
+        return label, extra
 
     # -----------------------------------------------------------------------
     # Preview

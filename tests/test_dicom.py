@@ -546,6 +546,14 @@ def test_rtstruct_discover_and_preview(tmp_path: Path):
     assert rt_volume["data"]["encoding"] == "nii.gz"
     assert rt_volume["data"]["meta"]["referenced_series_id"] == ct_ref.id
     assert "GTVp" in rt_volume["data"]["meta"]["labels"].values()
+    # A second volume fetch at coarser spacing must work after a native-grid
+    # attempt: ROI bitmaps stay tied to the first reference size in imgtools.
+    rt_coarse = case.fetch(rt_ref.id, view="volume", spacing=[2, 2, 2])
+    assert rt_coarse["data"]["meta"]["spacing"][0] == pytest.approx(2.0)
+    assert "GTVp" in rt_coarse["data"]["meta"]["labels"].values()
+    assert (
+        rt_coarse["data"]["meta"]["n_voxels"] < rt_volume["data"]["meta"]["n_voxels"]
+    )
     overlaid = case.fetch(ct_ref.id, view="preview", overlay=True, slice_index=0)
     assert overlaid["data"]["meta"]["overlay_source"] == "rtstruct"
     assert overlaid["data"]["meta"]["overlay"] is False

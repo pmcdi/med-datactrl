@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, cast
 
+import numpy as np
 import SimpleITK as sitk
 from imgtools.coretypes import (
     PET,
@@ -123,12 +124,27 @@ def _dose_from_dicom(directory: str, series_uid: str, files: list[str]) -> Dose:
         dose_mod.dcmread = real_dcmread
 
 
+# Body / external outlines usually contain every other ROI. When collapsing a
+# VectorMask with overlaps, paint those channels first so clinical structures
+# keep their voxels (imgtools' to_sparse_mask keeps the highest channel instead).
+_BODY_ROI_NAME = re.compile(
+    r"^(external|body|skin|outer.?contour|patient|support)$",
+    re.IGNORECASE,
+)
+
+
 def mask_to_label(
     mask: MaskSource,
     reference: MedImage,
     roi_names: list[str],
 ) -> tuple[sitk.Image, dict[str, str]]:
-    """Voxelize every ROI onto ``reference`` and collapse to one label image."""
+    """Voxelize ROIs onto ``reference`` and collapse to one label image.
+
+    Uses imagetools ``VectorMask``: a single ROI is a clean binary; multiple
+    non-overlapping ROIs use ``to_label_image``; overlapping ROIs are collapsed
+    by painting body/external channels first so nested structures (e.g. GTVp
+    inside EXTERNAL) are not erased.
+    """
     match_map = {name: [f"^{re.escape(name)}$"] for name in roi_names} or {
         "ROI": [".*"]
     }
@@ -143,16 +159,42 @@ def mask_to_label(
         raise InvalidFetchOptions(
             "No ROIs could be voxelized onto the referenced series"
         )
-    try:
-        label = vector.to_label_image()
-    except ValueError:
-        label = vector.to_sparse_mask()
     labels = {
         str(index): (mapping.roi_names[0] if mapping.roi_names else mapping.roi_key)
         for index, mapping in vector.roi_mapping.items()
         if index != 0 and mapping.roi_key != "Background"
     }
+    if vector.n_masks == 1 or not vector.has_overlap():
+        label = vector.to_label_image()
+    else:
+        label = _label_preferring_nested(vector, labels)
     return label, labels
+
+
+def _label_preferring_nested(
+    vector: Any, labels: dict[str, str]
+) -> sitk.Image:
+    """Collapse overlapping channels; smaller/nested ROIs overwrite larger ones.
+
+    Paint order: body/external first, then other ROIs from largest to smallest
+    channel footprint so GTVp inside Larynx (or EXTERNAL) keeps its voxels.
+    Prefer ``roi=`` on fetch when measuring one structure — that path is exact.
+    """
+    arr = sitk.GetArrayFromImage(vector)
+    label_arr = np.zeros(arr.shape[:3], dtype=np.uint8)
+    channels: list[tuple[int, int, int, int]] = []
+    for channel in range(arr.shape[-1]):
+        label_id = channel + 1
+        name = str(labels.get(str(label_id)) or "")
+        body = 0 if _BODY_ROI_NAME.match(name) else 1
+        count = int((arr[..., channel] == 1).sum())
+        channels.append((body, -count, channel, label_id))
+    channels.sort()
+    for _, _, channel, label_id in channels:
+        label_arr[arr[..., channel] == 1] = label_id
+    label_img = sitk.GetImageFromArray(label_arr)
+    label_img.CopyInformation(vector)
+    return sitk.Cast(label_img, sitk.sitkUInt8)
 
 
 # ---------------------------------------------------------------------------
